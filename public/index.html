@@ -571,6 +571,7 @@ input[type=text],input[type=number],input[type=date],input[type=time],select,tex
   </div>
   
   <div id="home-evening-alert" style="display:none; margin-bottom:14px;"></div>
+  <div id="live-band" style="margin-bottom:14px;"></div>
 
   <div id="today-ring-card" class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
     <div id="today-ring-inner"></div>
@@ -594,6 +595,7 @@ input[type=text],input[type=number],input[type=date],input[type=time],select,tex
     </div>
   </div>
   <div style="font-size:10px; color:var(--muted); text-align:center; margin-top:10px;">到着予定は出発の約53分後です</div>
+  <div id="bus-live-info"></div>
 </div>
   <div class="card">
     <div class="card-hdr"><span class="card-hdr-title">📈 科目別得点目標</span><button class="btn btn-s btn-sm" onclick="renderScoreTargetSettings(); showMo('mo-score-target')">目標設定</button></div>
@@ -703,6 +705,7 @@ input[type=text],input[type=number],input[type=date],input[type=time],select,tex
     <div class="page-title">📮 出願管理</div>
     <button class="btn btn-p btn-sm" onclick="openAppEdit()">+ 出願を追加</button>
   </div>
+  <div id="exam-news-feed" style="margin-bottom:14px;"></div>
 
   <div id="app-alerts" style="display:none;margin-bottom:14px"></div>
 
@@ -1038,7 +1041,7 @@ input[type=text],input[type=number],input[type=date],input[type=time],select,tex
           <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (高精度・分析用)</option>
           <option value="gemini-2.5-flash">Gemini 2.5 Flash (旧安定版)</option>
         </select>
-        <div style="font-size:11px;line-height:1.6;color:var(--muted);margin-top:4px">💎 Gemini 4 Argon は無料枠では使えません（APIキーが有料プランのときだけ動きます）。料金は100万トークンあたり入力$2・出力$10で、2026年12月1日から入力$4・出力$20に上がります（Google公式の料金表・2026年10月時点）。Web検索は月5,000回まで無料（Gemini 3以降のモデル全体での合計）。</div>
+        <div id="gemini-pricing-note" style="font-size:11px;line-height:1.6;color:var(--muted);margin-top:4px">💎 Gemini 4 Argon は無料枠では使えません（APIキーが有料プランのときだけ動きます）。料金は100万トークンあたり入力$2・出力$10で、2026年12月1日から入力$4・出力$20に上がります（Google公式の料金表・2026年10月時点）。Web検索は月5,000回まで無料（Gemini 3以降のモデル全体での合計）。</div>
       </div>
       
       <button class="btn btn-p" onclick="saveSettings()">設定を保存する</button>
@@ -1070,6 +1073,7 @@ input[type=text],input[type=number],input[type=date],input[type=time],select,tex
     <div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🛠 アプリ情報・動作確認</div><span class="expand-arrow">▼</span></div>
     <div class="expand-body">
       <div class="row"><div class="row-title">バージョン</div><span class="muted" id="app-version">—</span></div>
+      <div id="live-status-c"></div>
       <div class="divider"></div>
       <div style="font-size:12px;font-weight:700;margin-bottom:6px">✅ セルフチェック</div>
       <p style="font-size:11px;color:var(--muted);margin-bottom:8px">主要な計算ロジック（日付・学習時間の集計・チャット履歴・検索・出願の重複判定など）が正しく動くか確認します。</p>
@@ -1324,6 +1328,7 @@ input[type=text],input[type=number],input[type=date],input[type=time],select,tex
 <script src="js/13-exam-plan.js"></script>
 <script src="js/14-kyotsu.js"></script>
 <script src="js/15-past-exams.js"></script>
+<script src="js/16-live.js"></script>
 <script src="js/11-boot.js"></script>
 </body>
 </html>

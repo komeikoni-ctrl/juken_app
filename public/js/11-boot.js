@@ -294,6 +294,32 @@ SelfTest.add('過去問: 結果の計算と直近の平均', () => {
   assertEq(pastAvgRates(recs, 3), { en: 73, jp: 58, sel: 67 }, '科目ごとに得点率を平均（記録のある科目だけ）');
 });
 
+SelfTest.add('モデルの自動切替: 系統・保存値・チャット用だけ', () => {
+  const okIds = ['gemini-3.8-flash', 'gemini-4-argon', 'gemini-3.5-flash-lite', 'gemini-3.1-pro-preview'];
+  assert(okIds.every(LiveFeed._isChatModel), 'Flash / Flash-Lite / Pro / Argon はチャット用として通すこと');
+  const ngIds = ['gemini-3.8-flash-tts', 'gemini-3.1-flash-image', 'gemini-3.8-live', 'gemini-3.5-transcribe', 'gemini-2.5-flash-preview-09-2025', 'gemma-4-27b'];
+  assert(!ngIds.some(LiveFeed._isChatModel), '音声・画像・Live・日付つきプレビューは選択肢に入れないこと');
+  // localStorage を一時的に差し替えて確かめる（終わったら必ず戻す）
+  const KEYS = ['geminiModel', LIVE_CACHE_KEY];
+  const saved = KEYS.map(k => localStorage.getItem(k));
+  const savedAi = (typeof S !== 'undefined') ? S.aiModel : undefined;
+  try {
+    localStorage.removeItem(LIVE_CACHE_KEY);
+    localStorage.setItem('geminiModel', 'gemini-4-argon');
+    LiveFeed.autoUpgradeModel([{ id: 'gemini-3.9-flash' }, { id: 'gemini-3.9-flash-tts' }]);
+    assertEq(localStorage.getItem('geminiModel'), 'gemini-4-argon', 'Argon を保存している人を Flash に切り替えないこと（選択欄の先頭ではなく保存値を見る）');
+    localStorage.setItem('geminiModel', 'gemini-3.8-flash');
+    LiveFeed.autoUpgradeModel([{ id: 'gemini-3.9-flash-tts' }, { id: 'gemini-4-flash-preview' }]);
+    assertEq(localStorage.getItem('geminiModel'), 'gemini-3.8-flash', '音声版やプレビュー版だけの新作では切り替えないこと');
+    LiveFeed.autoUpgradeModel([{ id: 'gemini-3.9-flash' }]);
+    assertEq(localStorage.getItem('geminiModel'), 'gemini-3.9-flash', '同じ系統の新しい安定版が出たら切り替えること');
+  } finally {
+    KEYS.forEach((k, i) => saved[i] == null ? localStorage.removeItem(k) : localStorage.setItem(k, saved[i]));
+    if (typeof S !== 'undefined') S.aiModel = savedAi;
+    delete LiveFeed.data.modelAutoUpgrade;
+  }
+});
+
 SelfTest.add('モデル選択: 既定値と未知IDの扱い', () => {
   assert(AVAILABLE_MODELS.includes(DEFAULT_MODEL), '既定モデルが一覧に含まれること');
   assert(!AVAILABLE_MODELS.includes('gemini-2.0-flash'), '提供終了モデルが一覧にないこと');

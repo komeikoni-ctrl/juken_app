@@ -284,19 +284,23 @@ document.addEventListener('DOMContentLoaded', () => {
   // 🧹↑↑ ここまで追加 ↑↑🧹
 });
 // 神姫バス 平日の主要な発車時刻（フラワータウンセンター ⇔ 三宮）
-const scheduleToSan = [
+// 既定値。16-live.js が bus-timetable.json を取得できたら丸ごと差し替える
+window.BUS_TIMETABLE = {
+duration: 53,
+toSan: [
   "06:15", "06:25", "06:35", "06:45", "06:55", "07:05", "07:15", "07:25", "07:35", "07:45", 
   "08:00", "08:15", "08:34", "08:50", "09:20", "09:40", "10:00", "10:20", "10:40", "11:00", 
   "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", 
   "16:16", "16:46", "17:16", "17:46", "18:16", "18:46", "19:16", "19:46", "20:16", "21:00"
-];
-const scheduleToFlo = [
+],
+toFlo: [
   "07:20", "07:40", "08:00", "08:20", "08:40", "09:00", "09:30", "10:00", "10:30", "11:00", 
   "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", 
   "16:15", "16:30", "16:45", "17:00", "17:15", "17:30", "17:45", "18:00", "18:15", "18:30", 
   "18:45", "19:00", "19:15", "19:30", "19:45", "20:00", "20:15", "20:30", "20:45", "21:00", 
   "21:20", "21:40", "22:00", "22:20", "22:40", "23:00"
-];
+]
+};
 
 window.updateBusTimes = () => {
   const now = new Date();
@@ -323,9 +327,10 @@ window.updateBusTimes = () => {
 
   const elSan = document.getElementById('bus-to-san');
   const elFlo = document.getElementById('bus-to-flo');
-  // 神姫バス（特急）の正確な所要時間を指定（フラワータウン⇔三宮 は平均で約53分）
-  if(elSan) elSan.innerHTML = getNext3(scheduleToSan, 53);
-  if(elFlo) elFlo.innerHTML = getNext3(scheduleToFlo, 53);
+  // 神姫バス（特急）の所要時間は BUS_TIMETABLE.duration（フラワータウン⇔三宮 は平均で約53分）
+  const tt = window.BUS_TIMETABLE;
+  if(elSan) elSan.innerHTML = getNext3(tt.toSan, tt.duration);
+  if(elFlo) elFlo.innerHTML = getNext3(tt.toFlo, tt.duration);
 };
 
 // 🍎 Appleカレンダー（ICS形式）出力機能
