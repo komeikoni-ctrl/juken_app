@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>受験管理アプリ 2027 - AIコーチ搭載</title>
+<!-- manifest.json を直接参照する。以前はここに data: 形式で別のマニフェストを埋め込んでいたため、
+     public/manifest.json（正しいアイコン設定）が完全に無視されていた -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#007AFF">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text x=%2250%%22 y=%2250%%22 style=%22dominant-baseline:central;text-anchor:middle;font-size:90px;%22>📚</text></svg>">
+
+<style>
+/* ===== CSS (デザイン) ===== */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#F2F2F7;
+  --card:rgba(255,255,255,0.72);
+  --border:rgba(0,0,0,0.10);
+  --text:#1a1a14;--muted:#8E8E93;
+  --accent:#007AFF;--a2:#dc4f1e;--a3:#16a05a;--a4:#c07010;--pur:#5856D6;
+  --nav-h:48px;--r:22px;--sh:0 8px 32px rgba(0,0,0,.10);
+  --glass-blur:blur(40px) saturate(180%);
+  --nav-bg:rgba(255,255,255,0.55);
+}
+@media(prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#000000;--card:rgba(30,30,32,0.72);--border:rgba(255,255,255,0.12);
+    --text:#FFFFFF;--muted:#8E8E93;--sh:0 8px 32px rgba(0,0,0,.40);
+    --nav-bg:rgba(20,20,22,0.65);
+  }
+  :root:not([data-theme="light"]) .card{background:rgba(30,30,32,0.72)!important}
+}
+[data-theme="dark"]{
+  --bg:#000000;--card:rgba(30,30,32,0.72);--border:rgba(255,255,255,0.12);
+  --text:#FFFFFF;--muted:#8E8E93;--sh:0 8px 32px rgba(0,0,0,.40);
+  --nav-bg:rgba(20,20,22,0.65);
+}
+[data-theme="dark"] .card{background:rgba(30,30,32,0.72)!important}
+
+html,body{
+  height:100%;
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Yu Gothic UI',sans-serif;
+  background:var(--bg);color:var(--text);font-size:15px;
+  overflow-x:hidden;
+  position:relative;z-index:0;
+  transition:background 0.5s ease;
+}
+
+/* 🌌 空間を漂う環境光 */
+body::before,body::after{
+  content:"";position:fixed;border-radius:50%;filter:blur(90px);
+  z-index:-1;animation:floatOrb 22s ease-in-out infinite alternate;pointer-events:none;
+}
+body::before{width:420px;height:420px;background:rgba(0,122,255,0.13);top:-5%;left:-10%;}
+body::after{width:520px;height:520px;background:rgba(88,86,214,0.13);bottom:5%;right:-15%;animation-delay:-11s;}
+[data-theme="dark"] body::before{background:rgba(0,122,255,0.22);}
+[data-theme="dark"] body::after{background:rgba(88,86,214,0.22);}
+@media(prefers-color-scheme:dark){
+  body::before{background:rgba(0,122,255,0.22);}
+  body::after{background:rgba(88,86,214,0.22);}
+}
+@keyframes floatOrb{
+  0%{transform:translate(0,0) scale(1);}
+  100%{transform:translate(60px,60px) scale(1.25);}
+}
+
+.top-nav{
+  position:sticky;top:12px;z-index:200;
+  margin:12px 12px 0;
+  background:var(--nav-bg)!important;
+  border-radius:28px;
+  border:0.5px solid rgba(255,255,255,0.25)!important;
+  backdrop-filter:blur(30px) saturate(180%);
+  -webkit-backdrop-filter:blur(30px) saturate(180%);
+  display:flex;align-items:stretch;overflow-x:auto;scrollbar-width:none;
+  box-shadow:0 4px 24px rgba(0,0,0,0.10),inset 0 1px 1px rgba(255,255,255,0.5);
+  scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;
+}
+.top-nav::-webkit-scrollbar{display:none}
+.nav-btn,app-logo{scroll-snap-align:start;}
+.nav-btn.active{
+  color:var(--accent)!important;
+  border-bottom:none!important;
+  background:transparent!important;
+}
+.app-logo{flex:none;display:flex;align-items:center;padding:0 20px;font-weight:800;font-size:15px;color:var(--accent);letter-spacing:-.5px;white-space:nowrap;}
+.nav-btn{flex:none;display:flex;align-items:center;gap:6px;padding:0 18px;height:var(--nav-h);font-size:13px;font-weight:600;border:none;background:none;color:var(--muted);cursor:pointer;border-bottom:none;white-space:nowrap;transition:all .18s;font-family:inherit;position:relative;}
+.nav-btn:hover{color:var(--text);}
+.nav-btn.active{color:var(--accent)!important;border-bottom:none!important;background:transparent!important;}
+.nav-icon{font-size:16px}
+
+.main{max-width:960px;margin:0 auto;padding:16px 16px 40px}
+.page{display:none}.page.active{display:block}
+
+.card{
+  background:var(--card);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
+  border:1px solid rgba(255,255,255,0.55)!important;
+  border-radius:var(--r)!important;
+  padding:20px!important;
+  margin-bottom:18px!important;
+  box-shadow:var(--sh),inset 0 1px 1px rgba(255,255,255,0.85),inset 0 -1px 1px rgba(0,0,0,0.04)!important;
+  transition:transform 0.4s cubic-bezier(0.1,0.8,0.2,1),box-shadow 0.4s ease;
+}
+[data-theme="dark"] .card{
+  border:1px solid rgba(255,255,255,0.12)!important;
+  box-shadow:var(--sh),inset 0 1px 1px rgba(255,255,255,0.08),inset 0 -1px 1px rgba(0,0,0,0.18)!important;
+}
+.card:active{transform:scale(0.985);}
+.card-hdr{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.card-hdr-title{display:flex;align-items:center;gap:6px}
+.section-title{font-size:18px;font-weight:800;margin:20px 0 12px;letter-spacing:-.3px}
+
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media(max-width:500px){.g3{grid-template-columns:1fr 1fr}.g4{grid-template-columns:1fr 1fr 1fr}}
+
+.stat{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 12px;text-align:center}
+.stat-v{font-size:28px;font-weight:900;line-height:1;letter-spacing:-1px}
+.stat-l{font-size:11px;color:var(--muted);margin-top:4px;font-weight:500}
+
+.pb{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin:4px 0}
+.pf{height:100%;border-radius:3px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+.br{background:#fce8e4;color:#9a1a08}.bb{background:#e4ecfa;color:#0a2870}
+.bg{background:#e4f5ec;color:#0a4a22}.by{background:#fdf5e4;color:#6a4808}.bp{background:#f0e8fa;color:#3a0a8a}
+
+.row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border)}
+.row:last-child{border-bottom:none}
+.row-title{font-size:14px;font-weight:600}
+.row-sub{font-size:12px;color:var(--muted);margin-top:2px}
+
+.ci{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.ci:last-child{border-bottom:none}
+.ci input[type=checkbox]{width:17px;height:17px;accent-color:var(--accent);margin-top:1px;flex-shrink:0;cursor:pointer}
+.ci-text{font-size:13px;line-height:1.5;word-break:break-word}
+
+label.lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px}
+input[type=text],input[type=number],input[type=date],input[type=time],select,textarea{
+  width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:7px;
+  font-size:14px;background:var(--card);color:var(--text);transition:border-color .15s;
+  -webkit-appearance:none;font-family:inherit}
+input:focus,select:focus{outline:none;border-color:var(--accent)}
+input[type=range]{accent-color:var(--accent);width:100%}
+.form-row{margin-bottom:10px}
+.btn{padding:11px 22px;border-radius:14px;border:none;font-size:14px;font-weight:700;cursor:pointer;transition:all .18s;font-family:inherit;}
+.btn-p{background:linear-gradient(135deg,#007AFF,#5856D6);color:#fff;box-shadow:0 8px 20px rgba(0,122,255,0.30);}
+.btn-p:hover{filter:brightness(1.08);}
+.btn-s{background:rgba(120,120,128,0.14);color:var(--text);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+.btn-s:hover{background:rgba(120,120,128,0.22);}
+.btn:active{transform:scale(0.93);}
+.btn-sm{padding:8px 16px;font-size:13px;}
+.btn-full{width:100%;}
+
+.expand-section{margin-bottom:10px}
+.expand-hdr:hover{background:var(--bg)}
+.expand-hdr.open{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:transparent}
+.expand-title{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.expand-arrow{font-size:12px;color:var(--muted);transition:transform .2s}
+.expand-hdr.open .expand-arrow{transform:rotate(180deg)}
+.expand-body{display:none;padding:16px;background:var(--card);border:1px solid var(--border);border-top:none;border-bottom-left-radius:var(--r);border-bottom-right-radius:var(--r)}
+.expand-body.open{display:block}
+
+.hg{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin:8px 0}
+.hc{aspect-ratio:1;border-radius:4px;cursor:pointer;transition:transform .1s;position:relative}
+.hc:hover{transform:scale(1.15);z-index:2}
+.h0{background:var(--border)}.h1{background:#b5d4f4}.h2{background:#378add}.h3{background:#185fa5}.h4{background:#042c53}
+
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;gap:2px}
+.cal-head{font-size:11px;font-weight:700;color:var(--muted);padding:5px}
+.cal-day{padding:6px 2px;font-size:13px;cursor:pointer;border-radius:6px;transition:background .1s;min-height:32px;display:flex;align-items:center;justify-content:center;position:relative}
+.cal-day:hover{background:var(--border)}
+.cal-day.today{background:var(--accent);color:#fff;font-weight:800}
+.cal-day.other-m{color:var(--muted);opacity:.35}
+
+/* ⑦ カレンダー色分けドット（cal-dots方式） */
+.cal-day .cal-dots{position:absolute;bottom:3px;left:0;right:0;display:flex;justify-content:center;gap:2px}
+.cal-study-time{font-size:8px;font-weight:700;line-height:1;margin-top:1px}
+.cal-dot-mock{width:4px;height:4px;border-radius:50%;background:#1d4ed8;flex-shrink:0}
+.cal-dot-sp{width:4px;height:4px;border-radius:50%;background:#16a05a;flex-shrink:0}
+.cal-dot-ev{width:4px;height:4px;border-radius:50%;background:#dc4f1e;flex-shrink:0}
+
+/* ⑳ トースト通知 */
+#toast-container{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.toast{padding:10px 20px;border-radius:24px;font-size:13px;font-weight:700;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.18);opacity:0;transform:translateY(12px);transition:all .25s cubic-bezier(.4,0,.2,1);pointer-events:none;max-width:90vw;text-align:center;white-space:pre-wrap}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast-success{background:#16a05a}
+.toast-error{background:#dc4f1e}
+.toast-info{background:#1d4ed8}
+.toast-warn{background:#c07010}
+
+.timer-wrap{background:#0a1428;border-radius:14px;padding:30px 20px;text-align:center;margin-bottom:14px}
+.timer-disp{font-size:68px;font-weight:900;color:#ffffff;letter-spacing:-3px;font-variant-numeric:tabular-nums;line-height:1}
+.timer-sub-txt{font-size:13px;color:#6080b0;margin-top:8px}
+.timer-mode-row{display:flex;gap:8px;justify-content:center;margin-bottom:18px;flex-wrap:wrap}
+.tm-btn{padding:6px 16px;border-radius:20px;border:1px solid #2a3a5a;background:none;color:#6080b0;cursor:pointer;font-size:12px;font-family:inherit;transition:all .15s}
+.tm-btn.on{background:#1e3a6a;border-color:#4060a0;color:#a0c0ff}
+.timer-btns{display:flex;gap:12px;justify-content:center;margin-top:20px}
+.t-btn{padding:13px 32px;border-radius:30px;border:none;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;transition:all .15s}
+.t-start{background:#3a7fff;color:#fff}.t-stop{background:#ff3a3a;color:#fff}.t-reset{background:#1e2a40;color:#8090b0}
+
+.cw{position:relative;height:220px;margin:8px 0}
+.cw-lg{height:260px}
+
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:flex-end;justify-content:center}
+.ov.open{display:flex}
+.mo{background:var(--card);border-radius:18px 18px 0 0;padding:22px 20px;width:100%;max-width:600px;max-height:88vh;overflow-y:auto}
+.mo-title{font-size:17px;font-weight:800;margin-bottom:16px}
+@media(min-width:640px){.ov{align-items:center}.mo{border-radius:14px;max-height:80vh}}
+
+.cd-big{font-size:56px;font-weight:900;letter-spacing:-2px;line-height:1}
+
+.chat-msgs{min-height:260px;max-height:400px;overflow-y:auto;padding:4px 0;margin-bottom:12px}
+.cb{padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.7;margin-bottom:8px;max-width:86%;white-space:pre-wrap;word-break:break-word}
+.cb-ai{background:var(--bg);border-radius:14px 14px 14px 2px}
+.cb-user{background:var(--accent);color:#fff;margin-left:auto;border-radius:14px 14px 2px 14px}
+.chat-input-row{display:flex;gap:8px;align-items:flex-end}
+.chat-inp{flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:22px;font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;resize:none}
+.send-btn{padding:10px 20px;border-radius:22px;border:none;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap}
+
+.ach{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.ach:last-child{border-bottom:none}
+.ach-ico{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.ach-lock{background:var(--border);filter:grayscale(1) opacity(.5)}
+.ach-un{background:#fff7e0}
+
+.tt-table{width:100%;border-collapse:collapse;font-size:12px}
+.tt-table th{padding:6px 4px;text-align:center;font-weight:700;color:var(--muted);font-size:11px}
+.tt-cell{padding:3px 2px;text-align:center}
+.tt-inner{border-radius:6px;padding:7px 2px;font-weight:700;font-size:11px}
+
+.week-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.week-table{border-collapse:collapse;font-size:12px;min-width:440px;width:100%}
+.week-table th,.week-table td{padding:5px 4px;text-align:center;border:1px solid var(--border)}
+.week-table th{background:var(--bg);font-weight:700;font-size:11px;color:var(--muted)}
+.wk-ev{background:#e4ecfa;color:#0a2870;border-radius:3px;padding:2px 4px;font-size:10px;display:block;margin:1px}
+
+.trend-item{padding:12px 0;border-bottom:1px solid var(--border)}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.page-title{font-size:22px;font-weight:900;letter-spacing:-.5px}
+
+.range-row{margin-bottom:12px}
+.range-row label{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:4px}
+.range-row label span{color:var(--muted);font-weight:400}
+
+.empty{text-align:center;padding:32px 16px;color:var(--muted)}
+.empty-icon{font-size:36px;margin-bottom:8px}
+.empty-text{font-size:13px}
+
+@media(max-width:640px){
+  .main{padding:12px 10px 32px}
+  .card{padding:14px!important}
+  .g2{grid-template-columns:1fr 1fr}
+  .stat-v{font-size:22px}
+  .cd-big{font-size:44px}
+  .timer-disp{font-size:52px}
+  .app-logo{padding:0 14px;font-size:13px}
+  .nav-btn{padding:0 12px;font-size:12px}
+}
+/* ⚠️ ここは @media の行が抜け落ちていて、中身が全画面サイズに適用されていた。
+   さらに末尾の余分な「}」がCSSの解析を壊し、直後のルールが1つ無効化されていた。
+   本来のタブレット向けブレークポイントとして復元している。 */
+@media(max-width:820px){
+  .main{padding:14px 12px 32px}
+  .card{padding:14px}
+  .g2{grid-template-columns:1fr 1fr}
+  .stat-v{font-size:22px}
+  .cd-big{font-size:44px}
+  .timer-disp{font-size:52px}
+  .app-logo{padding:0 14px;font-size:13px}
+  .nav-btn{padding:0 12px;font-size:12px}
+}
+
+/* ✨ 新バージョン通知バナー */
+#update-banner{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;justify-content:center;
+  flex-wrap:wrap;gap:8px 10px;text-align:center;
+  background:var(--text);color:var(--card);padding:10px 16px;border-radius:20px;box-shadow:0 6px 24px rgba(0,0,0,.25);font-size:13px;font-weight:700;
+  width:max-content;max-width:calc(100vw - 32px)}
+/* 幅が足りないときは文言を1行使わせる。これがないと1文字ずつ折り返して縦長になる */
+#update-banner > span{flex:1 0 100%;white-space:normal}
+@media(min-width:420px){ #update-banner > span{flex:0 1 auto;white-space:nowrap} }
+#update-banner button{border:none;background:var(--accent);color:#fff;font-family:inherit;font-size:12px;font-weight:700;padding:6px 14px;border-radius:16px;cursor:pointer;white-space:nowrap}
+#update-banner button.ghost{background:transparent;color:var(--card);opacity:.7;padding:6px 4px}
+
+/* 📱 タブレット・横向き対応：広い画面では2カラムにして余白を活かす */
+@media (min-width:900px){
+  .main{max-width:1200px}
+  .page.active{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;align-items:start}
+  /* 見出し・全幅で見せたいものは横断させる */
+  .page.active > .page-hdr,
+  .page.active > .g4,
+  .page.active > #today-ring-card,
+  .page.active > #home-evening-alert,
+  .page.active > #app-alerts{grid-column:1 / -1}
+}
+/* スマホを横向きにしたとき：ヘッダーを薄くして本文の高さを確保する */
+@media (max-height:500px) and (orientation:landscape){
+  :root{--nav-h:44px}
+  .main{padding:8px 12px 24px}
+  .timer-disp{font-size:40px}
+  .cd-big{font-size:30px}
+  .chat-msgs{max-height:40vh}
+}
+
+.flex-between{display:flex;align-items:center;justify-content:space-between}
+.flex-gap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.muted{color:var(--muted)}
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+.icon-btn{border:none;background:none;cursor:pointer;color:var(--muted);font-size:18px;padding:2px 4px;line-height:1}
+.tag{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;background:var(--bg);border:1px solid var(--border);cursor:pointer;font-family:inherit;color:var(--text);transition:all .15s}
+.tag:hover{background:var(--border)}
+.divider{height:1px;background:var(--border);margin:14px 0}
+
+/* AI評価用バッジスタイル */
+.rank-badge { display:inline-block; width: 44px; height: 44px; line-height: 44px; text-align: center; border-radius: 50%; font-size: 22px; font-weight: 900; color: #fff; box-shadow: var(--sh); flex-shrink: 0;}
+.rank-S { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.rank-A { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+.rank-B { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.rank-C { background: linear-gradient(135deg, #10b981, #047857); }
+.rank-D { background: linear-gradient(135deg, #6b7280, #374151); }
+.rank-badge-sm { width: 28px; height: 28px; line-height: 28px; font-size: 14px; margin-right: 10px; }
+
+/* ノートアイテム用 */
+.note-item { background: var(--bg); border-radius: var(--r); padding: 12px; margin-bottom: 10px; }
+.note-tag { display: inline-block; background: var(--accent); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-right: 4px; margin-top: 4px;}
+
+/* AI評価カレンダー専用スタイル */
+.eval-cal-day { padding: 4px 2px; font-size: 12px; cursor: pointer; border-radius: 6px; transition: background .1s; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+.eval-cal-day:hover { background: var(--border); }
+.eval-cal-day.today { border: 1px solid var(--accent); font-weight: 800; }
+.eval-cal-day.other-m { color: var(--muted); opacity: .35; }
+.eval-badge { width: 20px; height: 20px; line-height: 20px; font-size: 10px; margin-top: 2px; border-radius: 50%; font-weight: 900; color: #fff; text-align: center; box-shadow: var(--sh); }
+
+/* ===== UI改善追加CSS ===== */
+
+/* ナビバッジ */
+.nav-badge{position:absolute;top:6px;right:4px;min-width:16px;height:16px;border-radius:8px;background:var(--a2);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px;line-height:1;pointer-events:none}
+.nav-btn{position:relative}
+
+/* 今日の学習リング */
+.today-ring-wrap{display:flex;align-items:center;gap:16px;padding:14px;background:var(--bg);border-radius:var(--r);margin-bottom:14px}
+.today-ring-svg{flex-shrink:0}
+.today-ring-info{flex:1;min-width:0}
+.today-ring-title{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px}
+.today-ring-val{font-size:28px;font-weight:900;letter-spacing:-1px;line-height:1}
+.today-ring-goal{font-size:12px;color:var(--muted);margin-top:2px}
+.today-ring-subj{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.today-ring-subj span{font-size:11px;padding:2px 7px;border-radius:10px;font-weight:700;color:#fff}
+
+/* カレンダーセル内タイトル（デスクトップ） */
+.cal-day{flex-direction:column;align-items:center;justify-content:flex-start;padding-top:5px;min-height:44px;gap:1px}
+.cal-ev-title{font-size:9px;line-height:1.2;color:var(--accent);font-weight:700;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 2px;width:100%;text-align:center}
+@media(max-width:480px){.cal-ev-title{display:none}}
+
+/* 宿題カード型 */
+.hw-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;transition:opacity .2s;box-shadow:var(--sh)}
+.hw-card.done-card{opacity:.5}
+.hw-card-top{display:flex;align-items:center;gap:10px}
+.hw-card input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);flex-shrink:0;cursor:pointer}
+.hw-card-body{flex:1;min-width:0}
+.hw-card-title{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hw-card-title.strikethrough{text-decoration:line-through;color:var(--muted)}
+.hw-card-meta{display:flex;gap:6px;align-items:center;margin-top:5px;flex-wrap:wrap}
+.hw-card-due{font-size:11px;color:var(--muted)}
+.hw-card-due.overdue{color:var(--a2);font-weight:700}
+
+/* タスクドラッグ */
+.ci.drag-over{background:var(--bg);border-radius:var(--r);border:2px dashed var(--accent)}
+.ci[draggable]{cursor:grab}
+.ci[draggable]:active{cursor:grabbing}
+.drag-handle{font-size:14px;color:var(--border);cursor:grab;padding:0 4px;flex-shrink:0;user-select:none;touch-action:none}
+
+/* チャットMarkdown */
+.cb-ai h1,.cb-ai h2,.cb-ai h3{font-weight:800;margin:6px 0 3px;line-height:1.3}
+.cb-ai h1{font-size:15px}.cb-ai h2{font-size:14px}.cb-ai h3{font-size:13px}
+.cb-ai strong{font-weight:800}
+.cb-ai em{font-style:italic}
+.cb-ai code{background:rgba(0,0,0,.08);border-radius:4px;padding:1px 5px;font-family:monospace;font-size:12px}
+.cb-ai ul,.cb-ai ol{margin:4px 0 4px 16px;font-size:13px}
+.cb-ai li{margin:2px 0}
+.cb-ai p{margin:3px 0}
+.cb-ai hr{border:none;border-top:1px solid var(--border);margin:6px 0}
+.cb-regen{border:none;background:none;color:var(--muted);font-size:11px;cursor:pointer;padding:2px 6px;border-radius:4px;font-family:inherit;transition:background .15s;margin-top:4px;display:inline-block}
+.cb-regen:hover{background:var(--border);color:var(--text)}
+.cb-actions{display:flex;flex-wrap:wrap;gap:2px;margin-top:6px;border-top:1px solid var(--border);padding-top:4px}
+/* 🔗 Web検索の出典 */
+.cb-sources{margin-top:8px;padding-top:6px;border-top:1px dashed var(--border)}
+.cb-sources-label{font-size:10px;color:var(--muted);font-weight:700;margin-bottom:4px}
+.src-chip{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;font-size:10px;color:var(--accent);background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:2px 8px;margin:0 4px 4px 0;text-decoration:none}
+.src-chip:hover{background:var(--border)}
+/* ストリーミング中のカーソル */
+.cb-caret{display:inline-block;animation:caretBlink 1s steps(2) infinite;color:var(--accent);font-weight:700}
+@keyframes caretBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.chat-attach-btn.mic-on{background:var(--a2);color:#fff}
+/* 時間割の空きコマ。タップで追加できることが分かるように薄く＋を出す */
+.tt-empty{height:100%;width:100%;min-height:46px;display:flex;align-items:center;justify-content:center;
+  color:var(--border);font-size:16px;font-weight:700;cursor:pointer;border-radius:4px;transition:all .15s}
+.tt-empty:hover{background:var(--bg);color:var(--accent)}
+
+/* 学習記録編集 */
+.log-edit-btn{border:none;background:none;font-size:13px;color:var(--muted);cursor:pointer;padding:2px 4px;border-radius:4px}
+.log-edit-btn:hover{background:var(--border)}
+
+/* ===== iOS26 追加スタイル（ここから） ===== */
+
+/* expand-hdr/bodyをガラス化 */
+.expand-hdr{
+  background:var(--card)!important;
+  backdrop-filter:blur(20px) saturate(150%);
+  -webkit-backdrop-filter:blur(20px) saturate(150%);
+  border:1px solid rgba(255,255,255,0.4)!important;
+  border-radius:var(--r)!important;
+}
+.expand-body{
+  background:var(--card)!important;
+  backdrop-filter:blur(20px) saturate(150%);
+  -webkit-backdrop-filter:blur(20px) saturate(150%);
+  border:1px solid rgba(255,255,255,0.3)!important;
+  border-top:none!important;
+}
+
+/* モーダルをガラス化 */
+.mo{
+  background:var(--card)!important;
+  backdrop-filter:var(--glass-blur)!important;
+  -webkit-backdrop-filter:var(--glass-blur)!important;
+  border-radius:28px 28px 0 0;
+  border-top:0.5px solid rgba(255,255,255,0.6);
+}
+@media(min-width:640px){.mo{border-radius:24px;}}
+
+/* statカードをガラス化 */
+.stat{
+  background:var(--card)!important;
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,0.4)!important;
+  border-radius:var(--r)!important;
+  box-shadow:var(--sh),inset 0 1px rgba(255,255,255,0.7)!important;
+}
+
+/* フォームinputをガラス化 */
+input[type=text],input[type=number],input[type=date],input[type=time],select,textarea{
+  background:rgba(255,255,255,0.55)!important;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  border:1px solid rgba(0,0,0,0.10)!important;
+  border-radius:12px!important;
+}
+[data-theme="dark"] input[type=text],[data-theme="dark"] input[type=number],
+[data-theme="dark"] input[type=date],[data-theme="dark"] input[type=time],
+[data-theme="dark"] select,[data-theme="dark"] textarea{
+  background:rgba(60,60,65,0.6)!important;border:1px solid rgba(255,255,255,0.1)!important;
+}
+
+/* ページ遷移 */
+.page{transition:opacity 0.3s ease,transform 0.3s cubic-bezier(0.1,0.8,0.2,1);}
+
+/* ナビインジケーター（カプセル） */
+#nav-indicator{
+  position:absolute;height:32px;top:8px;left:0;width:0;
+  background:rgba(0,122,255,0.14);
+  border-radius:16px;pointer-events:none;z-index:0;
+  mix-blend-mode:multiply;
+  transition:transform 0.4s cubic-bezier(0.2,1,0.2,1),width 0.4s cubic-bezier(0.2,1,0.2,1);
+}
+@media(prefers-color-scheme:dark){
+  #nav-indicator{background:rgba(100,140,255,0.20);mix-blend-mode:screen;}
+}
+[data-theme="dark"] #nav-indicator{background:rgba(100,140,255,0.20);mix-blend-mode:screen;}
+
+/* タイマー没入モード */
+.timer-immersive{
+  position:fixed!important;inset:0!important;background:#000!important;z-index:9999!important;
+  display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;
+  padding-top:env(safe-area-inset-top)!important;padding-bottom:env(safe-area-inset-bottom)!important;
+}
+.timer-immersive-btn{
+  position:absolute!important;top:calc(20px + env(safe-area-inset-top))!important;right:20px!important;
+  background:rgba(255,255,255,0.15)!important;border:1px solid rgba(255,255,255,0.2)!important;
+  color:#fff!important;border-radius:20px!important;padding:10px 16px!important;font-weight:bold!important;
+}
+
+/* スクロールバー */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(120,120,128,0.3);border-radius:3px}
+
+/* ===== チャット ファイル添付 ===== */
+.chat-attach-btn{width:36px;height:36px;border-radius:50%;border:none;background:rgba(120,120,128,0.14);color:var(--muted);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .18s;}
+.chat-attach-btn:hover{background:rgba(0,122,255,0.12);color:var(--accent);}
+.chat-attach-btn:active{transform:scale(0.9);}
+.chat-file-preview{display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(0,122,255,0.06);border:1px solid rgba(0,122,255,0.18);border-radius:12px;margin-bottom:8px;position:relative;}
+.chat-file-preview img{width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0;}
+.chat-file-preview-icon{width:52px;height:52px;border-radius:8px;background:rgba(220,79,30,0.1);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;}
+.chat-file-preview-info{flex:1;min-width:0;}
+.chat-file-preview-name{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
+.chat-file-preview-size{font-size:11px;color:var(--muted);margin-top:2px;}
+.chat-file-remove{position:absolute;top:4px;right:6px;border:none;background:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0;line-height:1;}
+.chat-file-remove:hover{color:var(--a2);}
+.cb-img{max-width:220px;max-height:200px;border-radius:10px;display:block;margin-top:6px;object-fit:cover;cursor:pointer;transition:max-width .2s,max-height .2s;}
+.cb-pdf{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:6px 10px;background:rgba(220,79,30,0.1);border-radius:8px;font-size:12px;font-weight:700;color:#dc4f1e;}
+/* --- iOS 26 流体デザイン & スマホ対応 強制適用 --- */
+.nav-btn.active {
+  color: var(--accent) !important;
+  border-bottom: none !important; 
+  background: transparent !important;
+}
+
+#nav-indicator {
+  position: absolute !important;
+  top: 8px !important;
+  height: 32px !important;
+  background: rgba(0, 122, 255, 0.12) !important;
+  border-radius: 16px !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100 !important;
+  pointer-events: none;
+}
+
+/* スマホの時計やノッチと重ならないようにする設定 */
+.timer-immersive {
+  position: fixed !important; inset: 0 !important; background: #000 !important; z-index: 9999 !important;
+  display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important;
+  padding-top: env(safe-area-inset-top) !important; padding-bottom: env(safe-area-inset-bottom) !important;
+}
+
+.timer-immersive-btn {
+  position: absolute !important;
+  top: calc(30px + env(safe-area-inset-top)) !important;
+  right: 24px !important;
+  z-index: 10001 !important;
+}
+</style>
+</head>
+<body>
+
+<div id="toast-container"></div>
+<nav class="top-nav">
+<div id="nav-indicator"></div>
+  <div class="app-logo">📚 受験管理</div>
+  <button class="nav-btn active" onclick="showPage('home',this)"><span class="nav-icon">🏠</span>ホーム<span class="nav-badge" id="nb-home" style="display:none"></span></button>
+  <button class="nav-btn" onclick="showPage('timer',this)"><span class="nav-icon">⏱</span>タイマー</button>
+  <button class="nav-btn" onclick="showPage('calendar',this)"><span class="nav-icon">📅</span>カレンダー</button>
+  <button class="nav-btn" onclick="showPage('uni',this)"><span class="nav-icon">🎓</span>志望校</button>
+      <button class="nav-btn" onclick="showPage('apply',this)"><span class="nav-icon">📮</span>出願<span class="nav-badge" id="nb-apply" style="display:none"></span></button>
+  <button class="nav-btn" onclick="showPage('analytics',this)"><span class="nav-icon">📊</span>分析</button>
+  <button class="nav-btn" onclick="showPage('sunzemi',this)"><span class="nav-icon">🏫</span>駿台<span class="nav-badge" id="nb-sunzemi" style="display:none"></span></button>
+  <button class="nav-btn" onclick="showPage('aicoach',this)"><span class="nav-icon">👨‍🏫</span>AIコーチ</button>
+  <button class="nav-btn" onclick="showPage('settings',this)"><span class="nav-icon">⚙️</span>設定</button>
+</nav>
+
+<div class="main">
+
+<div id="page-home" class="page active">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title">ダッシュボード</div>
+      <div class="muted" style="font-size:13px;display:flex;align-items:center;gap:8px">
+        <span id="home-date"></span><span id="sync-indicator"></span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-p btn-sm" onclick="document.getElementById('ai-ocr-input').click()" id="btn-ocr">📸 カメラ/PDF解析</button>
+      <button class="btn btn-s btn-sm" onclick="showMo('mo-study')">+ 手動記録</button>
+    </div>
+  </div>
+  
+  <div id="home-evening-alert" style="display:none; margin-bottom:14px;"></div>
+
+  <div id="today-ring-card" class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
+    <div id="today-ring-inner"></div>
+  </div>
+
+  <div class="card"><div class="card-hdr"><span class="card-hdr-title">⏰ 入試カウントダウン</span></div><div class="g2" id="home-countdown"></div></div>
+  <div class="g4" id="home-stats" style="margin-bottom:14px"></div>
+<div class="card" style="background: linear-gradient(145deg, rgba(10, 132, 255, 0.1), rgba(255, 255, 255, 0.1)); border: 1px solid rgba(10, 132, 255, 0.2) !important;">
+  <div class="card-hdr" style="margin-bottom:12px;">
+    <span class="card-hdr-title" style="color:var(--accent); font-weight:900; font-size:14px;">🚌 LIVE: 神姫バス（特急）</span>
+    <span class="badge bb" style="font-size:10px;">三宮行</span>
+  </div>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:center;">
+    <div style="background:rgba(255,255,255,0.4); padding:15px; border-radius:18px; text-align:center; box-shadow: 0 4px 10px rgba(0,0,0,0.03);">
+      <div style="font-size:9px; color:var(--muted); font-weight:700; margin-bottom:4px;">FLOWER TOWN</div>
+      <div id="bus-to-san" style="font-size:22px; font-weight:900; color:var(--text); letter-spacing:-1px;">--:--</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.4); padding:15px; border-radius:18px; text-align:center; box-shadow: 0 4px 10px rgba(0,0,0,0.03);">
+      <div style="font-size:9px; color:var(--muted); font-weight:700; margin-bottom:4px;">SANNOMIYA</div>
+      <div id="bus-to-flo" style="font-size:22px; font-weight:900; color:var(--text); letter-spacing:-1px;">--:--</div>
+    </div>
+  </div>
+  <div style="font-size:10px; color:var(--muted); text-align:center; margin-top:10px;">到着予定は出発の約53分後です</div>
+</div>
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">📈 科目別得点目標</span><button class="btn btn-s btn-sm" onclick="renderScoreTargetSettings(); showMo('mo-score-target')">目標設定</button></div>
+    <div id="home-subj-prog"><div class="empty">科目の目標を設定してください</div></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">🎯 志望校 合可能性</span></div>
+    <div id="home-uni-prob"><div class="empty">志望校タブから大学を登録してください</div></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">✅ 今日のタスク</span><button class="btn btn-s btn-sm" onclick="showMo('mo-task')">+ 追加</button></div>
+    <div id="home-tasks"><div class="empty">タスクを追加してください</div></div>
+  </div>
+  <div class="card"><div class="card-hdr"><span class="card-hdr-title">🏆 称号・実績</span></div><div id="home-ach"></div></div>
+</div>
+
+<div id="page-timer" class="page">
+  <div class="page-hdr"><div class="page-title">⏱ タイマー</div><button class="btn btn-s btn-sm" onclick="toggleImmersive()" id="btn-immersive">🔲 集中モード</button></div>
+  <div class="timer-wrap" id="timer-wrap-main">
+    <div class="timer-mode-row"><button class="tm-btn on" onclick="setTimerMode('stopwatch',this)">ストップウォッチ</button><button class="tm-btn" onclick="setTimerMode('pomodoro',this)">ポモドーロ</button><button class="tm-btn" onclick="setTimerMode('countdown',this)">カウントダウン</button></div>
+    <div class="timer-disp" id="timer-disp">00:00:00</div><div class="timer-sub-txt" id="timer-sub">スタートボタンで開始（※別の画面を開くとサボり検知されます）</div>
+    <div class="timer-btns"><button class="t-btn t-reset" onclick="timerReset()">リセット</button><button class="t-btn t-start" id="timer-toggle-btn" onclick="timerToggle()">スタート</button></div>
+  </div>
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">⚙️ タイマー設定</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body open">
+      <div class="g2">
+        <div class="form-row"><label class="lbl">記録する科目</label><select id="timer-subj"><option value="">科目を選択</option></select></div>
+        <div class="form-row"><label class="lbl">ポモドーロ時間（分）</label><input type="number" id="pomo-min" value="25" min="1" max="120"></div>
+      </div>
+      <div class="g2">
+        <div class="form-row"><label class="lbl">カウントダウン 時間</label><input type="number" id="cd-h" value="1" min="0" max="23"></div>
+        <div class="form-row"><label class="lbl">カウントダウン 分</label><input type="number" id="cd-m" value="30" min="0" max="59"></div>
+      </div>
+      <button class="btn btn-s btn-sm" onclick="setCountdown()">カウントダウンをセット</button>
+    </div>
+  </div>
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📋 本日の学習記録</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body open">
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px">📈 今日の科目別合計</div>
+      <div id="timer-today-subj"><div class="empty">まだ記録がありません</div></div>
+      <div class="divider"></div>
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px">📝 ストップ履歴</div>
+      <div id="timer-log"><div class="empty">まだ記録がありません</div></div>
+      <div class="divider"></div>
+      <div class="flex-between" style="font-size:13px"><span class="muted">本日合計</span><strong id="timer-today-total">0h0m</strong></div>
+    </div>
+  </div>
+</div>
+
+<div id="page-calendar" class="page">
+  <div class="page-hdr">
+  <div class="page-title">📅 カレンダー</div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-s btn-sm" onclick="exportToICS()">🍎 カレンダーに出力</button>
+    <button class="btn btn-s btn-sm" onclick="showMo('mo-repeat')">🔁 繰り返し</button>
+    <button class="btn btn-p btn-sm" onclick="showMo('mo-ev')">+ 予定追加</button>
+  </div>
+</div>
+  <div class="expand-section"><div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📆 月カレンダー</div><span class="expand-arrow">▼</span></div><div class="expand-body open"><div class="flex-between" style="margin-bottom:12px"><button class="btn btn-s btn-sm" onclick="chMonth(-1)">‹ 前月</button><strong id="cal-title" style="font-size:15px"></strong><button class="btn btn-s btn-sm" onclick="chMonth(1)">翌月 ›</button></div><div class="cal-grid" id="cal-head"></div><div class="cal-grid" id="cal-body" style="margin-top:4px"></div></div></div>
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">📋 週表示</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div class="flex-between" style="margin-bottom:10px"><button class="btn btn-s btn-sm" onclick="chWeek(-1)">‹ 前週</button><strong id="week-title" style="font-size:14px"></strong><button class="btn btn-s btn-sm" onclick="chWeek(1)">翌週 ›</button></div><div class="week-scroll" id="week-wrap"></div></div></div>
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🔁 繰り返し予定一覧</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div id="repeat-ev-list"><div class="empty">繰り返し予定はありません</div></div></div></div>
+<div class="expand-section"><div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📝 予定一覧</div><span class="expand-arrow">▼</span></div><div class="expand-body open"><div id="ev-list"><div class="empty">予定がありません</div></div></div></div>
+</div>
+
+<div id="page-uni" class="page">
+  <div class="page-hdr"><div class="page-title">🎓 志望校管理</div><button class="btn btn-p btn-sm" onclick="showMo('mo-uni')">+ 志望校追加</button></div>
+  <div class="expand-section"><div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📋 志望校一覧</div><span class="expand-arrow">▼</span></div><div class="expand-body open"><div id="uni-list-c"><div class="empty">志望校を追加してください</div></div></div></div>
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">🎯 私大一般入試 合格ラインチェック（同志社・立命・近大）</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body open"><div id="priv-sim-c"></div></div>
+  </div>
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📝 過去問の記録</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body open"><div id="past-form-c"></div><div id="past-list-c"></div></div>
+  </div>
+  <div class="expand-section">
+    <div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🎯 共通テスト 合格可能性シミュレーター</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body">
+      <div class="range-row"><label>英語（R+L）<span id="sv-en">0/200</span></label><input type="range" min="0" max="200" value="0" id="s-en" oninput="doSim()"></div>
+      <div class="range-row"><label>国語（現古漢）<span id="sv-jp">0/200</span></label><input type="range" min="0" max="200" value="0" id="s-jp" oninput="doSim()"></div>
+      <div class="range-row"><label>数学（1A+2B+C）<span id="sv-ma">0/200</span></label><input type="range" min="0" max="200" value="0" id="s-ma" oninput="doSim()"></div>
+      <div class="range-row"><label>世界史B<span id="sv-hi">0/100</span></label><input type="range" min="0" max="100" value="0" id="s-hi" oninput="doSim()"></div>
+      <div class="range-row"><label>政治経済<span id="sv-pe">0/100</span></label><input type="range" min="0" max="100" value="0" id="s-pe" oninput="doSim()"></div>
+      <div class="range-row"><label>化学基礎<span id="sv-ch">0/50</span></label><input type="range" min="0" max="50" value="0" id="s-ch" oninput="doSim()"></div>
+      <div class="range-row"><label>生物基礎<span id="sv-bi">0/50</span></label><input type="range" min="0" max="50" value="0" id="s-bi" oninput="doSim()"></div>
+      <div class="range-row"><label>情報<span id="sv-in">0/100</span></label><input type="range" min="0" max="100" value="0" id="s-in" oninput="doSim()"></div>
+      <div style="background:var(--bg);border-radius:var(--r);padding:14px;margin-top:8px"><div style="font-size:13px;color:var(--muted);margin-bottom:8px">合計 <strong><span id="s-total">0</span></strong><span id="s-total-max">/800点</span>（<strong id="s-pct">0</strong>%）</div><div id="sim-res"><div class="empty">志望校を追加するとここに表示されます</div></div></div>
+      <div class="mt12"><div class="card-hdr" style="margin-bottom:8px"><span class="card-hdr-title">合格可能性推移</span></div><div class="cw"><canvas id="prob-chart"></canvas></div></div>
+    </div>
+  </div>
+  <div class="expand-section">
+    <div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">📊 共通テスト ボーダー検索</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body">
+      <div class="form-row"><input type="text" placeholder="大学名・学部を入力" id="border-q"></div>
+      <button class="btn btn-s btn-sm mb12" onclick="aiSearchBorder()" style="margin-bottom:12px">AIで最新データを検索</button>
+      <div id="border-res"></div>
+    </div>
+  </div>
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">⚖️ 大学別 配点管理</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div id="scoring-c"><button class="btn btn-s btn-sm" onclick="renderScoring(true)">AIで最新情報を取得</button></div></div></div>
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🔍 入試傾向分析</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div id="trend-c"><button class="btn btn-s btn-sm" onclick="renderTrend(true)">AIで最新傾向を取得</button></div></div></div>
+</div>
+
+<div id="page-apply" class="page">
+  <div class="page-hdr">
+    <div class="page-title">📮 出願管理</div>
+    <button class="btn btn-p btn-sm" onclick="openAppEdit()">+ 出願を追加</button>
+  </div>
+
+  <div id="app-alerts" style="display:none;margin-bottom:14px"></div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">🤖 AIで空欄を埋める</span></div>
+    <div id="app-ai-bulk"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">💴 受験料の合計</span></div>
+    <div id="app-fee-summary"></div>
+  </div>
+
+  <div class="card" style="border-color:var(--a2)">
+    <div class="card-hdr">
+      <span class="card-hdr-title" style="color:var(--a2)">🎯 共通テストの出願（令和9年度・Web出願）</span>
+      <button class="btn btn-s btn-sm" onclick="addKyotsuEvents()" style="white-space:nowrap">📅 予定に追加</button>
+    </div>
+    <div id="kyotsu-c"></div>
+  </div>
+
+  <div class="card" style="border-color:var(--pur)">
+    <div class="card-hdr">
+      <span class="card-hdr-title" style="color:var(--pur)">🗓 2027年度 出願プラン（立命・同志社・近大）</span>
+      <span id="plan-updated" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div id="plan-c"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">🔀 併願プラン（受験日の重複チェック）</span></div>
+    <div id="app-conflicts"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">📅 入試日程をカレンダーへ</span></div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">出願開始・締切・受験日・合格発表・入学手続締切を、カレンダーの予定として自動生成します（作り直すと以前の自動生成分は置き換わります）。</p>
+    <button class="btn btn-s btn-sm btn-full" onclick="syncApplicationEvents()">📅 カレンダーに反映する</button>
+  </div>
+
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📋 出願一覧・提出書類</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body open"><div id="app-list"><div class="empty">出願予定を追加してください</div></div></div>
+  </div>
+</div>
+
+<div id="page-analytics" class="page">
+  <div class="page-hdr"><div class="page-title">📊 学習分析</div><button class="btn btn-p btn-sm" onclick="openMockModal()">+ 模試記録</button></div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">🏅 累計学習マイルストーン</span></div>
+    <div id="milestone-c"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">📈 前週比・前月比</span></div>
+    <div id="comparison-c"></div>
+  </div>
+
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">🏅 AI評価カレンダー</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body open">
+      <div class="flex-between" style="margin-bottom:12px">
+        <button class="btn btn-s btn-sm" onclick="chEvalMonth(-1)">‹ 前月</button>
+        <strong id="eval-cal-title" style="font-size:15px"></strong>
+        <button class="btn btn-s btn-sm" onclick="chEvalMonth(1)">翌月 ›</button>
+      </div>
+      <div class="cal-grid" id="eval-cal-head"></div>
+      <div class="cal-grid" id="eval-cal-body" style="margin-top:4px"></div>
+      <div id="eval-cal-detail" style="margin-top:12px; padding:10px; background:var(--bg); border-radius:var(--r); display:none;"></div>
+    </div>
+  </div>
+
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📝 週次AIレポート</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body open">
+      <div id="weekly-rep" style="font-size:13px;line-height:1.85;white-space:pre-wrap"><div class="empty">AIレポートは未生成です。</div></div>
+      <button class="btn btn-p btn-full mt12" onclick="genAIReport()">🔄 レポートを生成</button>
+    </div>
+  </div>
+
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">⏱ 学習時間分析</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body open">
+      <div class="g2" style="margin-bottom:10px">
+        <div><label class="lbl">科目</label><select id="add-subj"></select></div>
+        <div><label class="lbl">時間（分）</label><input type="number" id="add-min" placeholder="60" min="1"></div>
+      </div>
+      <div class="g2" style="margin-bottom:10px"><div><label class="lbl">日付（省略=今日）</label><input type="date" id="add-date"></div><div style="display:flex;align-items:flex-end"><button class="btn btn-p btn-sm btn-full" onclick="addStudyTime()">手動で記録</button></div></div>
+      
+      <div class="divider"></div><div style="font-weight:700;font-size:14px;margin-bottom:6px">① 日別 総学習時間</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label class="lbl" style="margin:0">表示期間</label><select id="daily-range" onchange="initDailyChart()" style="width:auto;margin:0;padding:6px 10px"><option value="30">直近30日</option><option value="90">直近90日</option><option value="180">直近180日</option><option value="365">直近365日</option><option value="0" selected>全期間</option></select></div>
+      <div style="position:relative;height:220px;overflow-x:auto;-webkit-overflow-scrolling:touch"><div id="daily-chart-wrap" style="height:220px;min-width:100%"><canvas id="chart-daily"></canvas></div></div>
+      
+      <div class="divider"></div><div style="font-weight:700;font-size:14px;margin-bottom:6px">② 週別 総学習時間</div>
+      <div style="position:relative;height:220px;overflow-x:auto;-webkit-overflow-scrolling:touch"><div style="height:220px;min-width:100%"><canvas id="chart-weekly"></canvas></div></div>
+
+      <div class="divider"></div><div style="font-weight:700;font-size:14px;margin-bottom:6px">③ 月別 総学習時間</div>
+      <div style="position:relative;height:220px;overflow-x:auto;-webkit-overflow-scrolling:touch"><div style="height:220px;min-width:100%"><canvas id="chart-mo"></canvas></div></div>
+
+      <div class="divider"></div><div style="font-weight:700;font-size:14px;margin-bottom:6px">④ 日別 科目別内訳</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label class="lbl" style="margin:0">日付</label><input type="date" id="pie-daily-date" onchange="initDailyPieChart()" style="width:auto;margin:0;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text)"><span id="pie-daily-total" style="font-size:12px;color:var(--muted)"></span></div>
+      <div id="pie-daily-wrap" style="position:relative;height:260px"><canvas id="chart-pie-daily"></canvas></div><div id="pie-daily-empty" class="empty" style="display:none">その日の記録がありません</div>
+      
+      <div class="divider"></div><div style="font-weight:700;font-size:14px;margin-bottom:6px">⑤ 週別 科目別内訳</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label class="lbl" style="margin:0">週を選択</label><select id="pie-weekly-week" onchange="initWeeklyPieChart()" style="width:auto;margin:0;padding:6px 10px"></select><span id="pie-weekly-total" style="font-size:12px;color:var(--muted)"></span></div>
+      <div id="pie-weekly-wrap" style="position:relative;height:260px"><canvas id="chart-pie-weekly"></canvas></div><div id="pie-weekly-empty" class="empty" style="display:none">その週の記録がありません</div>
+      
+      <div class="divider"></div><div style="font-weight:700;font-size:14px;margin-bottom:6px">⑥ 月別 科目別内訳</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label class="lbl" style="margin:0">月を選択</label>
+        <select id="pie-monthly-month" onchange="initMonthlyPieChart()" style="width:auto;margin:0;padding:6px 10px">
+          <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option><option value="4">4月</option><option value="5">5月</option><option value="6">6月</option><option value="7">7月</option><option value="8">8月</option><option value="9">9月</option><option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+        </select>
+        <span id="pie-monthly-total" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div id="pie-monthly-wrap" style="position:relative;height:260px"><canvas id="chart-pie-monthly"></canvas></div><div id="pie-monthly-empty" class="empty" style="display:none">その月の記録がありません</div>
+    </div>
+  </div>
+
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">📈 偏差値推移</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div class="cw cw-lg"><canvas id="chart-dev"></canvas></div><div id="mock-tbl" class="mt12"></div></div></div>
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">📊 模試 実得点推移</div><span class="expand-arrow">▼</span></div><div class="expand-body">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">各回の実得点（点数）の推移を科目別に表示します</div>
+    <div class="cw cw-lg"><canvas id="chart-mock-score"></canvas></div>
+  </div></div>
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🏅 模試 順位推移</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div class="cw cw-lg"><canvas id="chart-rank"></canvas></div></div></div>
+
+  <div class="expand-section">
+    <div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🔥 苦手分野ヒートマップ</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">マスをクリックして苦手度を変更できます。濃い色＝苦手</div>
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px">数学（1A・2B・C）</div><div class="hg" id="hm-math"></div>
+      <div style="font-weight:700;font-size:13px;margin:16px 0 4px">英語</div><div class="hg" id="hm-eng"></div>
+      <div style="font-weight:700;font-size:13px;margin:16px 0 4px">世界史</div><div class="hg" id="hm-history"></div>
+    </div>
+  </div>
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🕸 科目別レーダーチャート</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div class="cw cw-lg"><canvas id="chart-radar"></canvas></div><div class="divider"></div><div style="font-weight:600;font-size:13px;margin-bottom:8px">科目別正解率</div><div class="cw"><canvas id="chart-acc"></canvas></div></div></div>
+  <div class="expand-section">
+    <div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">📊 科目別偏差値 全回推移</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">全模試の科目別偏差値の推移を表示します</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px" id="mock-subj-legend"></div>
+      <div class="cw cw-lg"><canvas id="chart-mock-subj"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div id="page-sunzemi" class="page">
+  <div class="page-hdr"><div class="page-title">🏫 駿台・予備校管理</div></div>
+  
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📸 ノートAIインデックス＆検索</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body open">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">板書やテキストを撮ると、AIがタイトル・科目・要約を自動作成して検索可能にします。<strong>複数枚まとめて選べば1冊として登録</strong>され、元画像も端末内に保存されます。</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input type="text" id="note-search" placeholder="あいまい検索（カタカナ/ひらがな・全角半角を無視）..." oninput="renderNotes()" style="flex:1">
+        <button class="btn btn-p btn-sm" onclick="document.getElementById('note-upload-input').click()" id="btn-scan-note">ノートをスキャン</button>
+      </div>
+      <div id="note-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+      <div id="note-list"><div class="empty">ノートがありません</div></div>
+      <button class="btn btn-s btn-sm mt12" onclick="exportNotesPdf()">🖨 表示中のノートをPDF出力</button>
+    </div>
+  </div>
+
+  <div class="expand-section"><div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📚 時間割</div><span class="expand-arrow">▼</span></div><div class="expand-body open">
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">コマをタップすると編集できます。空きコマ（＋）をタップすると授業を追加できます。</p>
+    <div style="overflow-x:auto" id="tt-wrap"></div>
+    <button class="btn btn-s btn-sm mt12" onclick="openTTModal()">+ 授業を追加</button>
+  </div></div>
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">📝 宿題管理</div><span class="expand-arrow">▼</span></div><div class="expand-body">
+    <div id="hw-filter-bar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="tag" style="background:var(--accent);color:#fff;border-color:var(--accent)" onclick="setHwFilter('',this)">すべて</button>
+      <button class="tag" onclick="setHwFilter('未完了',this)">未完了</button>
+      <button class="tag" onclick="setHwFilter('🔴',this)">🔴 高</button>
+      <button class="tag" onclick="setHwFilter('🟡',this)">🟡 中</button>
+      <button class="tag" onclick="setHwFilter('🟢',this)">🟢 低</button>
+    </div>
+    <div id="hw-list"><div class="empty">宿題がありません</div></div>
+    <button class="btn btn-s btn-sm mt12" onclick="showMo('mo-hw')">+ 宿題追加</button>
+  </div></div>
+
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">📈 模試成績一覧</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div id="mock-rec-tbl"></div><button class="btn btn-s btn-sm mt12" onclick="openMockModal()">+ 模試記録</button></div></div>
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">📅 模試スケジュール</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div id="mock-cal-list"><div class="empty">予定がありません</div></div><button class="btn btn-s btn-sm mt12" onclick="showMo('mo-mock-sched')">+ 模試予定追加</button></div></div>
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🌟 特別講習・イベント</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div id="sp-list"><div class="empty">予定がありません</div></div><button class="btn btn-s btn-sm mt12" onclick="showMo('mo-sp')">+ 講習追加</button></div></div>
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">📎 その他</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div id="extra-list"><div class="empty">ありません</div></div><button class="btn btn-s btn-sm mt12" onclick="showMo('mo-extra')">+ 追加</button></div></div>
+</div>
+
+<div id="page-aicoach" class="page">
+  <div class="page-hdr"><div class="page-title">👨‍🏫 AIコーチ</div></div>
+
+  <div class="card" style="border-color:var(--accent); background:#f4f7ff">
+    <div class="card-hdr"><span class="card-hdr-title" style="color:var(--accent)">♻️ 間違えた問題の「類題」自動生成</span></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:10px">間違えた問題の写真を撮ると、AIが思考プロセスを分析して「全く新しい類題」を作り、チャットに出題してくれます。</p>
+    <button class="btn btn-p btn-sm btn-full" onclick="document.getElementById('ruidai-upload-input').click()" id="btn-ruidai">📸 問題をスキャンして類題を作る</button>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr">
+      <span class="card-hdr-title">📚 教材に聞く（塾テキスト・参考書・教科書）</span>
+      <span id="tb-stat" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">取り込んだ教材の本文から該当ページを探して、そこだけを根拠にAIが答えます。画像を送らないので通信量もAPIの消費も少なめです。</p>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <input type="text" id="tb-q" placeholder="例: 仮定法過去完了の作り方／ヘレニズム文化の特徴" style="flex:1;margin:0" onkeydown="if(event.key==='Enter'&&!event.isComposing&&event.keyCode!==229){event.preventDefault();tbAsk()}">
+      <button class="btn btn-p btn-sm" onclick="tbAsk()" style="white-space:nowrap">🔎 探して答える</button>
+    </div>
+    <input type="hidden" id="tb-book" value="">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">検索範囲: <span id="tb-scope">📚 すべての教材</span>（下の教材名を押すと1冊に絞れます）</div>
+    <div id="tb-answer" style="font-size:14px;line-height:1.75"></div>
+    <div id="tb-list" style="margin-top:10px;max-height:190px;overflow-y:auto"></div>
+    <!-- iOSの「ファイル」アプリは accept を厳しくすると .json が選べなくなることがあるので指定しない -->
+    <input type="file" id="tb-import-input" multiple style="display:none" onchange="tbImport(event)">
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-s btn-sm" style="flex:1" id="tb-import-btn" onclick="document.getElementById('tb-import-input').click()">📥 教材データを読み込む</button>
+      <button class="btn btn-s btn-sm" style="flex:1" id="tb-sync-btn" onclick="tbSync()">☁️ 他の端末と同期</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">🌅 今日やるべきこと（AI提案）</span></div>
+    <div id="morning-plan-c">
+      <div class="empty">
+        <div class="empty-icon">🌅</div>
+        <div class="empty-text">ボタンを押すと、時間割・宿題・模試日程からAIが今日の動き方を組み立てます</div>
+      </div>
+    </div>
+    <button class="btn btn-p btn-sm btn-full mt12" onclick="genMorningPlan()">🌅 今日のプランを作ってもらう</button>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">📊 今日のAI評価 ＆ 明日のタスク提案</span></div>
+    <div id="daily-coach-c">
+      <div class="empty">
+        <div class="empty-icon">📝</div>
+        <div class="empty-text">学習時間やタスクを記録してから評価ボタンを押してください</div>
+      </div>
+    </div>
+    <button class="btn btn-p btn-sm btn-full mt12" onclick="evalDaily()">💡 今日の学習をAIに評価してもらう</button>
+  </div>
+
+<div class="card">
+    <div class="card-hdr">
+      <span class="card-hdr-title">💬 あなた専属の塾講師に相談</span>
+      <div style="display:flex; gap:8px; align-items:center">
+        <button class="icon-btn" onclick="toggleChatSearch()" title="検索">🔍</button>
+        <button class="icon-btn" onclick="renameCurrentChat()" title="チャット名変更">✏️</button>
+        <button class="icon-btn" onclick="deleteCurrentChat()" title="削除" style="color:var(--a2)">🗑️</button>
+      </div>
+    </div>
+    
+    <div id="chat-threads-wrap" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid var(--border); scrollbar-width:none;"></div>
+
+    <div id="chat-search-bar" style="display:none;margin-bottom:10px">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="chat-search-inp" placeholder="チャット履歴をキーワード検索..." oninput="searchChat()" style="flex:1;margin:0">
+        <button class="btn btn-s btn-sm" onclick="clearChatSearch()" style="white-space:nowrap">✕ 閉じる</button>
+      </div>
+      <div id="chat-search-result" style="margin-top:8px;font-size:12px;color:var(--muted)"></div>
+    </div>
+    <div class="chat-msgs" id="chat-msgs">
+      <div class="cb cb-ai">こんにちは！君の全学習状況、成績、予定などはすべて把握しています。悩みや質問があればいつでも相談してね！📚</div>
+    </div>
+    <div id="chat-file-preview-wrap" style="display:none;"></div>
+    <input type="file" id="chat-file-input" accept="image/*,application/pdf" style="display:none" onchange="onChatFileSelected(event)">
+    <div class="chat-input-row" style="align-items:flex-end;">
+      <button class="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="画像・PDF を添付（画像は自動で縮小されます）">📎</button>
+      <button class="chat-attach-btn" onclick="tbAttachFromChat()" title="入力中の言葉で教材を探して、該当ページを添付します">📚</button>
+      <button class="chat-attach-btn" id="chat-websearch-btn" onclick="toggleWebSearchMode()" title="Web検索：自動（必要そうなときだけ）">🔎</button>
+      <button class="chat-attach-btn" id="chat-mic-btn" onclick="toggleVoiceInput()" title="音声で入力" style="display:none">🎤</button>
+      <textarea class="chat-inp" id="chat-in" placeholder="質問を入力... (Enterで送信)" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();doChat()}"></textarea>
+      <button class="send-btn" onclick="doChat()">送信</button>
+    </div>
+  </div>
+  
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">💡 よくある質問</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body open">
+      <div class="flex-gap">
+        <button class="tag" onclick="askQ('同志社大学 経済学部の英語には基準点80点（200点中）があります。79点以下にならないための対策と、今からの英語の勉強の優先順位を教えて')">同志社英語80点</button>
+        <button class="tag" onclick="askQ('立命館大学 全学統一方式（英語120・国語100・選択100、各80分）の時間配分と、経済学部の合格最低点6割を超えるための作戦を教えて')">立命 全学統一</button>
+        <button class="tag" onclick="askQ('近畿大学 前期A日程（英語・国語・選択 各60分、国語は漢文なし）の時間配分と、押さえで確実に受かるための対策を教えて')">近大 前期A</button>
+        <button class="tag" onclick="askQ('同志社・立命館・近大の過去問は、いつから・どの大学から・何年分解けばいい？共通テスト対策との両立も含めて教えて')">過去問の進め方</button>
+        <button class="tag" onclick="askQ('国語は同志社だけ漢文があり、近大は漢文なし・立命は漢文の独立問題なし。漢文にどれくらい時間をかけるべき？')">漢文どこまで</button>
+        <button class="tag" onclick="askQ('共通テストまで残りの期間で、世界史と政治経済をどう仕上げればいい？私大の選択科目にどちらを使うかも含めて相談したい')">世界史・政経</button>
+        <button class="tag" onclick="askQ('今日の勉強時間が少なかったです。どうリカバリーすればいいですか？')">リカバリー相談</button>
+        <button class="tag" onclick="askQ('駿台の予習と自分の問題集、どっちを優先すべき？')">予習の優先順位</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+  <div id="page-settings" class="page">
+  <div class="page-hdr"><div class="page-title">⚙️ 設定</div></div>
+
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)">
+      <div class="expand-title">🌓 外観（iOS 26 スタイル）</div>
+      <span class="expand-arrow">▼</span>
+    </div>
+    <div class="expand-body open">
+      <div class="g3">
+        <button class="btn btn-s btn-sm" onclick="setTheme('light')" id="th-light">☀️ ライト</button>
+        <button class="btn btn-s btn-sm" onclick="setTheme('dark')" id="th-dark">🌙 ダーク</button>
+        <button class="btn btn-s btn-sm" onclick="setTheme('system')" id="th-system">⚙️ 自動</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)">
+      <div class="expand-title">🔑 アカウント ＆ AI設定</div>
+      <span class="expand-arrow">▼</span>
+    </div>
+    <div class="expand-body open">
+      <div class="g2">
+        <div class="form-row"><label class="lbl">名前</label><input type="text" id="set-name" placeholder="例：山田 太郎"></div>
+        <div class="form-row"><label class="lbl">学年</label><select id="set-grade"><option value="高校1年">高校1年</option><option value="高校2年">高校2年</option><option value="高校3年">高校3年</option><option value="浪人1年目">浪人1年目</option><option value="浪人2年目">浪人2年目</option></select></div>
+      </div>
+      <div class="form-row"><label class="lbl">二次試験日</label><input type="date" id="set-niji"></div>
+      
+      <div class="form-row">
+        <label class="lbl">Gemini APIキー（AI機能に必要）</label>
+        <input type="password" id="set-api-key" placeholder="APIキーを入力">
+      </div>
+      
+      <div class="form-row">
+        <label class="lbl">使用するAIモデル</label>
+        <select id="set-model">
+          <option value="gemini-3.8-flash">Gemini 3.8 Flash ⭐ (最新・推奨)</option>
+          <option value="gemini-4-argon">Gemini 4 Argon 💎 (最高性能・有料プランのみ・高額)</option>
+          <option value="gemini-3.6-flash">Gemini 3.6 Flash (バランス型・低価格)</option>
+          <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (超高速・低コスト)</option>
+          <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (高精度・分析用)</option>
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash (旧安定版)</option>
+        </select>
+        <div style="font-size:11px;line-height:1.6;color:var(--muted);margin-top:4px">💎 Gemini 4 Argon は無料枠では使えません（APIキーが有料プランのときだけ動きます）。料金は100万トークンあたり入力$2・出力$10で、2026年12月1日から入力$4・出力$20に上がります（Google公式の料金表・2026年10月時点）。Web検索は月5,000回まで無料（Gemini 3以降のモデル全体での合計）。</div>
+      </div>
+      
+      <button class="btn btn-p" onclick="saveSettings()">設定を保存する</button>
+
+      <div class="divider"></div>
+      <button class="btn btn-s btn-sm" style="color:var(--a2)" onclick="resetAllData()">🗑 全データをリセットする</button>
+    </div>
+  </div>
+
+  <div class="expand-section">
+    <div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🧹 科目名の統合</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">同じ授業が違う名前で記録されていると、学習時間が分かれて集計されます。時間割にない科目名があればここに出るので、対応する授業に統合できます。</p>
+      <div id="subject-merge-c"></div>
+    </div>
+  </div>
+
+  <div class="expand-section">
+    <div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">💾 バックアップ</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body"><div id="backup-c"></div></div>
+  </div>
+
+  <div class="expand-section">
+    <div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🗑 ゴミ箱（30日間）</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body"><div id="trash-c"></div></div>
+  </div>
+
+  <div class="expand-section">
+    <div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🛠 アプリ情報・動作確認</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body">
+      <div class="row"><div class="row-title">バージョン</div><span class="muted" id="app-version">—</span></div>
+      <div class="divider"></div>
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px">✅ セルフチェック</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:8px">主要な計算ロジック（日付・学習時間の集計・チャット履歴・検索・出願の重複判定など）が正しく動くか確認します。</p>
+      <button class="btn btn-s btn-sm btn-full" onclick="runSelfTest()">セルフチェックを実行</button>
+      <div id="selftest-c" style="margin-top:10px"></div>
+      <div class="divider"></div>
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px">🐞 エラーログ</div>
+      <div id="errorlog-c"></div>
+    </div>
+  </div>
+</div>
+</div><!-- /.main : ここまでがページ本体。以降のモーダルは position:fixed なので外に出す
+     （中に入れたままだと、モーダルを開いたまま横スワイプしたときにタブが切り替わってしまう） -->
+
+<div class="ov" id="mo-uni" onclick="closeMo('mo-uni')"><div class="mo" onclick="event.stopPropagation()"><div class="mo-title">🎓 志望校を追加</div><div class="form-row"><label class="lbl">大学名</label><input type="text" id="u-name"></div><div class="form-row"><label class="lbl">学部・学科</label><input type="text" id="u-dep"></div><div class="form-row"><label class="lbl">タイプ</label><select id="u-type"><option value="challenge">チャレンジ校</option><option value="main">第一志望</option><option value="safe">安全校</option></select></div><div class="g2 mt12"><button class="btn btn-p" onclick="addUni()">追加</button><button class="btn btn-s" onclick="closeMo('mo-uni')">キャンセル</button></div></div></div>
+<div class="ov" id="mo-mock" onclick="closeMo('mo-mock')"><div class="mo" onclick="event.stopPropagation()">
+<div class="mo-title">📊 模試を記録</div>
+<div class="form-row"><label class="lbl">模試名</label><input type="text" id="m-name" placeholder="例：駿台全国模試 第1回"></div>
+<div class="g2">
+  <div class="form-row"><label class="lbl">受験日</label><input type="date" id="m-date"></div>
+  <div class="form-row"><label class="lbl">種別</label>
+    <select id="m-type" onchange="switchMockType(this.value)">
+      <option value="kyotsu">📝 共通テスト系</option>
+      <option value="kijutsu">✍️ 記述系</option>
+    </select>
+  </div>
+</div>
+<div id="mock-form-kyotsu">
+  <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin:10px 0 6px">📊 偏差値</div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">英語偏差値</label><input type="number" id="m-en" placeholder="例: 65"></div>
+    <div class="form-row"><label class="lbl">国語偏差値</label><input type="number" id="m-jp" placeholder="例: 60"></div>
+  </div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">数学偏差値</label><input type="number" id="m-ma" placeholder="例: 70"></div>
+    <div class="form-row"><label class="lbl">世界史偏差値</label><input type="number" id="m-hi" placeholder="例: 55"></div>
+  </div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">政経偏差値</label><input type="number" id="m-pe" placeholder="例: 60"></div>
+    <div class="form-row"><label class="lbl">総合偏差値</label><input type="number" id="m-total" placeholder="例: 63"></div>
+  </div>
+  <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin:10px 0 6px">✍️ 実得点（任意）</div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">英語R+L</label><input type="number" id="m-en-score" placeholder="/200"></div>
+    <div class="form-row"><label class="lbl">国語（現古漢）</label><input type="number" id="m-jp-score" placeholder="/200"></div>
+  </div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">数学1A</label><input type="number" id="m-ma1-score" placeholder="/100"></div>
+    <div class="form-row"><label class="lbl">数学2B</label><input type="number" id="m-ma2-score" placeholder="/100"></div>
+  </div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">数学C</label><input type="number" id="m-mac-score" placeholder="/100"></div>
+    <div class="form-row"><label class="lbl">世界史B</label><input type="number" id="m-hi-score" placeholder="/100"></div>
+  </div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">政治経済</label><input type="number" id="m-pe-score" placeholder="/100"></div>
+    <div class="form-row"><label class="lbl">化学基礎</label><input type="number" id="m-ch-score" placeholder="/50"></div>
+  </div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">生物基礎</label><input type="number" id="m-bi-score" placeholder="/50"></div>
+    <div class="form-row"><label class="lbl">情報1</label><input type="number" id="m-in-score" placeholder="/100"></div>
+  </div>
+</div>
+<div id="mock-form-kijutsu" style="display:none">
+  <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin:10px 0 6px">📊 偏差値</div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">英語偏差値</label><input type="number" id="m-k-en" placeholder="例: 65"></div>
+    <div class="form-row"><label class="lbl">国語偏差値</label><input type="number" id="m-k-jp" placeholder="例: 60"></div>
+  </div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">数学偏差値</label><input type="number" id="m-k-ma" placeholder="例: 70"></div>
+    <div class="form-row"><label class="lbl">総合偏差値</label><input type="number" id="m-k-total" placeholder="例: 63"></div>
+  </div>
+  <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin:10px 0 6px">✍️ 実得点（任意）</div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">英語R+L</label><input type="number" id="m-k-en-score" placeholder="/"></div>
+    <div class="form-row"><label class="lbl">国語</label><input type="number" id="m-k-jp-score" placeholder="/"></div>
+  </div>
+  <div class="form-row"><label class="lbl">数学</label><input type="number" id="m-k-ma-score" placeholder="/"></div>
+</div>
+<div class="form-row" style="margin-top:10px"><label class="lbl">全体順位</label><input type="number" id="m-rank" placeholder="例: 1500"></div>
+<div class="g2 mt12"><button class="btn btn-p" onclick="addMock()">記録</button><button class="btn btn-s" onclick="closeMo('mo-mock')">キャンセル</button></div>
+</div></div>
+<div class="ov" id="mo-ev" onclick="closeMo('mo-ev')">
+  <div class="mo" onclick="event.stopPropagation()">
+    <div class="mo-title">📅 予定を追加</div>
+    <div class="form-row"><label class="lbl">タイトル</label><input type="text" id="ev-title"></div>
+    <div class="g2">
+      <div class="form-row"><label class="lbl">日付</label><input type="date" id="ev-date"></div>
+      <div class="form-row"><label class="lbl">時間 (任意)</label><input type="time" id="ev-time"></div>
+    </div>
+    <div class="form-row"><label class="lbl">種類</label><select id="ev-type"><option value="exam">試験</option><option value="study">学習</option><option value="other">その他</option></select></div>
+    <div class="g2 mt12"><button class="btn btn-p" onclick="addEv()">追加</button><button class="btn btn-s" onclick="closeMo('mo-ev')">キャンセル</button></div>
+  </div>
+</div>
+<div class="ov" id="mo-task" onclick="closeMo('mo-task')"><div class="mo" onclick="event.stopPropagation()">
+<div class="mo-title">✅ タスクを追加</div>
+<div class="form-row"><label class="lbl">タスク内容</label><input type="text" id="task-text" placeholder="例：英語 長文1題 解く"></div>
+<div class="g2">
+  <div class="form-row"><label class="lbl">科目（任意）</label><select id="task-subj"><option value="">なし</option></select></div>
+  <div class="form-row"><label class="lbl">優先度</label><select id="task-prio"><option value="mid" selected>🟡 中</option><option value="high">🔴 高</option><option value="low">🟢 低</option></select></div>
+</div>
+<div class="form-row"><label class="lbl">締切日（任意）</label><input type="date" id="task-due"></div>
+<div class="g2 mt12"><button class="btn btn-p" onclick="addTask()">追加</button><button class="btn btn-s" onclick="closeMo('mo-task')">キャンセル</button></div>
+</div></div>
+<div class="ov" id="mo-study" onclick="closeMo('mo-study')"><div class="mo" onclick="event.stopPropagation()"><div class="mo-title">⏱ 手動で学習時間を記録</div><div class="form-row"><label class="lbl">科目</label><select id="qs-subj"></select></div><div class="form-row"><label class="lbl">時間（分）</label><input type="number" id="qs-min"></div><div class="g2 mt12"><button class="btn btn-p" onclick="quickStudy()">記録</button><button class="btn btn-s" onclick="closeMo('mo-study')">キャンセル</button></div></div></div>
+<div class="ov" id="mo-hw" onclick="closeMo('mo-hw')"><div class="mo" onclick="event.stopPropagation()"><div class="mo-title">📝 宿題を追加</div><div class="form-row"><label class="lbl">科目</label><select id="hw-subj"></select></div><div class="form-row"><label class="lbl">内容</label><input type="text" id="hw-cont"></div><div class="g2"><div class="form-row"><label class="lbl">提出日</label><input type="date" id="hw-due"></div><div class="form-row"><label class="lbl">優先度</label><select id="hw-prio"><option value="high">🔴 高</option><option value="mid" selected>🟡 中</option><option value="low">🟢 低</option></select></div></div><div class="g2 mt12"><button class="btn btn-p" onclick="addHw()">追加</button><button class="btn btn-s" onclick="closeMo('mo-hw')">キャンセル</button></div></div></div>
+<div class="ov" id="mo-tt" onclick="closeMo('mo-tt')">
+  <div class="mo" onclick="event.stopPropagation()">
+    <div class="mo-title">📚 授業を登録・編集</div>
+    <div class="g2">
+      <div class="form-row"><label class="lbl">曜日</label><select id="tt-day"><option>月</option><option>火</option><option>水</option><option>木</option><option>金</option></select></div>
+      <div class="form-row"><label class="lbl">時限</label><select id="tt-period"><option>1限</option><option>2限</option><option>3限</option><option>4限</option><option>5限</option><option>6限</option><option>7限</option><option>8限</option><option>9限</option><option>10限</option></select></div>
+    </div>
+    <div class="form-row"><label class="lbl">科目名</label><input type="text" id="tt-subj" list="tt-subj-options" placeholder="例：英文読解S"><datalist id="tt-subj-options"></datalist>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">空欄のまま保存すると、そのコマは削除されます。</div>
+    </div>
+    <div class="g2">
+      <div class="form-row"><label class="lbl">教室番号</label><input type="text" id="tt-room" placeholder="例：31号教室"></div>
+      <div class="form-row"><label class="lbl">講師名</label><input type="text" id="tt-teacher" placeholder="例：駿台 太郎"></div>
+    </div>
+    <div class="g2 mt12">
+      <button class="btn btn-p" onclick="addTT()">保存</button>
+      <button class="btn btn-s" onclick="deleteTT()" id="btn-del-tt" style="color:var(--a2); border-color:var(--a2); display:none;">削除</button>
+    </div>
+    <div class="mt8"><button class="btn btn-s btn-full" onclick="closeMo('mo-tt')">キャンセル</button></div>
+  </div>
+</div>
+<div class="ov" id="mo-score-target" onclick="closeMo('mo-score-target')"><div class="mo" onclick="event.stopPropagation()"><div class="mo-title">🎯 科目別得点目標</div><div id="mo-score-content"></div><div class="g2 mt12"><button class="btn btn-p" onclick="saveScoreTargets()">保存</button><button class="btn btn-s" onclick="closeMo('mo-score-target')">キャンセル</button></div></div></div>
+
+<div class="ov" id="mo-mock-sched" onclick="closeMo('mo-mock-sched')"><div class="mo" onclick="event.stopPropagation()"><div class="mo-title">📅 模試予定を追加</div><div class="form-row"><label class="lbl">模試名</label><input type="text" id="ms-name"></div><div class="form-row"><label class="lbl">日付</label><input type="date" id="ms-date"></div><div class="g2 mt12"><button class="btn btn-p" onclick="addMockSched()">追加</button><button class="btn btn-s" onclick="closeMo('mo-mock-sched')">キャンセル</button></div></div></div>
+<div class="ov" id="mo-sp" onclick="closeMo('mo-sp')"><div class="mo" onclick="event.stopPropagation()"><div class="mo-title">🌟 講習・イベント追加</div><div class="form-row"><label class="lbl">名称</label><input type="text" id="sp-name"></div><div class="g2"><div class="form-row"><label class="lbl">開始日</label><input type="date" id="sp-s"></div><div class="form-row"><label class="lbl">終了日</label><input type="date" id="sp-e"></div></div><div class="form-row"><label class="lbl">ステータス</label><select id="sp-st"><option>申込前</option><option>申込済</option><option>受講中</option><option>完了</option></select></div><div class="g2 mt12"><button class="btn btn-p" onclick="addSp()">追加</button><button class="btn btn-s" onclick="closeMo('mo-sp')">キャンセル</button></div></div></div>
+<div class="ov" id="mo-extra" onclick="closeMo('mo-extra')"><div class="mo" onclick="event.stopPropagation()"><div class="mo-title">📎 その他追加</div><div class="form-row"><label class="lbl">タイトル</label><input type="text" id="extra-title"></div><div class="form-row"><label class="lbl">日付</label><input type="date" id="extra-date"></div><div class="form-row"><label class="lbl">メモ</label><input type="text" id="extra-note"></div><div class="g2 mt12"><button class="btn btn-p" onclick="addExtra()">追加</button><button class="btn btn-s" onclick="closeMo('mo-extra')">キャンセル</button></div></div></div>
+
+<div class="ov" id="mo-repeat" onclick="closeMo('mo-repeat')"><div class="mo" onclick="event.stopPropagation()">
+  <div class="mo-title">🔁 繰り返し予定を追加</div>
+  <div class="form-row"><label class="lbl">タイトル</label><input type="text" id="rp-title" placeholder="例：英語の授業"></div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">曜日</label><select id="rp-dow"><option>月</option><option>火</option><option>水</option><option>木</option><option>金</option><option>土</option><option>日</option></select></div>
+    <div class="form-row"><label class="lbl">時間（任意）</label><input type="time" id="rp-time"></div>
+  </div>
+  <div class="g2 mt12"><button class="btn btn-p" onclick="addRepeatEvent()">追加</button><button class="btn btn-s" onclick="closeMo('mo-repeat')">キャンセル</button></div>
+</div></div>
+
+<div class="ov" id="mo-new-chat" onclick="closeMo('mo-new-chat')">
+  <div class="mo" onclick="event.stopPropagation()">
+    <div class="mo-title">💬 新しいチャットを作成</div>
+    <div class="form-row"><label class="lbl">チャット名</label><input type="text" id="new-chat-title" placeholder="例：英語対策チャット"></div>
+    <div class="g2 mt12">
+      <button class="btn btn-p" onclick="confirmCreateNewChat()">作成</button>
+      <button class="btn btn-s" onclick="closeMo('mo-new-chat')">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="ai-ocr-input" accept="image/*,.pdf" style="display:none" onchange="handleFileUpload(event)">
+<input type="file" id="note-upload-input" accept="image/*,.pdf" multiple style="display:none" onchange="scanNote(event)"><div class="ov" id="mo-day-detail" onclick="closeMo('mo-day-detail')"><div class="mo" onclick="event.stopPropagation()"><div class="mo-title" id="day-detail-title" style="margin-bottom:12px;">予定</div><div id="day-detail-content" style="margin-bottom:16px;"></div><div class="g2 mt12"><button class="btn btn-s" style="grid-column: span 2;" onclick="closeMo('mo-day-detail')">閉じる</button></div></div></div>
+<input type="file" id="ruidai-upload-input" accept="image/*,.pdf" style="display:none" onchange="generateRuidai(event)">
+
+<!-- 📮 出願の追加・編集 -->
+<div class="ov" id="mo-app" onclick="closeMo('mo-app')"><div class="mo" onclick="event.stopPropagation()">
+  <div class="mo-title">📮 出願を追加</div>
+  <input type="hidden" id="app-edit-id">
+  <div class="form-row"><label class="lbl">大学名</label><input type="text" id="app-name" list="app-uni-options" placeholder="例：神戸大学"><datalist id="app-uni-options"></datalist></div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">学部・学科</label><input type="text" id="app-dep" placeholder="例：経済学部"></div>
+    <div class="form-row"><label class="lbl">日程</label><select id="app-method">
+      <option value="前期">前期</option><option value="中期">中期</option><option value="後期">後期</option>
+      <option value="共テ利用">共テ利用</option><option value="推薦・総合型">推薦・総合型</option><option value="その他">その他</option>
+    </select></div>
+  </div>
+  <button class="btn btn-s btn-sm btn-full" id="app-ai-btn" onclick="aiFillApplication()">🔍 AIに空欄を全部調べてもらう</button>
+  <div id="app-ai-sources"></div>
+  <div class="divider"></div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">出願開始</label><input type="date" id="app-apply-start"></div>
+    <div class="form-row"><label class="lbl">出願締切</label><input type="date" id="app-apply-end"></div>
+  </div>
+  <div class="form-row"><label class="lbl">出願方法</label><input type="text" id="app-apply-note" placeholder="例：Web出願＋書類郵送（締切日必着）"></div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">受験日</label><input type="date" id="app-exam-date"></div>
+    <div class="form-row"><label class="lbl">受験最終日（複数日のとき）</label><input type="date" id="app-exam-date-end"></div>
+  </div>
+  <div class="form-row"><label class="lbl">集合・試験時間</label><input type="text" id="app-exam-time" placeholder="例：9:00集合／国語9:30〜、数学13:00〜"></div>
+  <div class="form-row"><label class="lbl">試験科目・配点</label><textarea id="app-subjects" rows="2" placeholder="例：共テ 5教科7科目(450)／二次 英語(150)・数学(150)・国語(150)"></textarea></div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">合格発表</label><input type="date" id="app-result-date"></div>
+    <div class="form-row"><label class="lbl">入学手続締切</label><input type="date" id="app-procedure"></div>
+  </div>
+  <div class="g2">
+    <div class="form-row"><label class="lbl">受験料（円）</label><input type="number" id="app-fee" placeholder="17000"></div>
+    <div class="form-row"><label class="lbl">入学金（円）</label><input type="number" id="app-enroll-fee" placeholder="282000"></div>
+  </div>
+  <div class="form-row"><label class="lbl" style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="app-fee-paid" style="width:auto;margin:0"> 受験料は支払済み</label></div>
+  <div class="form-row"><label class="lbl">受験会場・交通メモ</label><input type="text" id="app-venue" placeholder="例：六甲台キャンパス／三宮からバス20分"></div>
+  <div class="form-row"><label class="lbl">募集要項・入試情報のURL</label><input type="text" id="app-url" placeholder="https://..."></div>
+  <div class="form-row"><label class="lbl">メモ・注意点</label><textarea id="app-memo" rows="2" placeholder="例：二段階選抜あり／英語は外部検定利用可"></textarea></div>
+  <div class="g2 mt12">
+    <button class="btn btn-p" onclick="saveApplication()">保存</button>
+    <button class="btn btn-s" onclick="closeMo('mo-app')">キャンセル</button>
+  </div>
+</div></div>
+
+<!-- ⚠️ 汎用確認モーダル -->
+<div class="ov" id="mo-confirm" onclick="closeMo('mo-confirm')">
+  <div class="mo" onclick="event.stopPropagation()" style="max-width:380px">
+    <div class="mo-title" id="mo-confirm-title">確認</div>
+    <p id="mo-confirm-msg" style="font-size:14px;line-height:1.6;color:var(--muted);margin-bottom:18px"></p>
+    <div class="g2">
+      <button class="btn" id="mo-confirm-ok" style="background:var(--a2);color:#fff;font-weight:700">削除する</button>
+      <button class="btn btn-s" onclick="closeMo('mo-confirm')">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- 📝 学習記録 編集モーダル -->
+<div class="ov" id="mo-log-edit" onclick="closeMo('mo-log-edit')">
+  <div class="mo" onclick="event.stopPropagation()">
+    <div class="mo-title">✏️ 学習記録を編集</div>
+    <input type="hidden" id="log-edit-id">
+    <div class="form-row"><label class="lbl">科目</label>
+      <select id="log-edit-subj"></select>
+    </div>
+    <div class="form-row"><label class="lbl">時間（分）</label><input type="number" id="log-edit-min" min="1"></div>
+    <div class="form-row"><label class="lbl">日付</label><input type="date" id="log-edit-date"></div>
+    <div class="g2 mt12">
+      <button class="btn btn-p" onclick="saveLogEdit()">保存</button>
+      <button class="btn" style="background:var(--a2);color:#fff;font-weight:700" onclick="deleteLogEntry()">削除</button>
+    </div>
+    <div class="mt8"><button class="btn btn-s btn-full" onclick="closeMo('mo-log-edit')">キャンセル</button></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+<!-- アプリ本体。classic script なので「この順番どおり」に実行される。
+     順番を入れ替えたり defer/async を付けたりすると初期化が壊れるので注意 -->
+<script src="js/version.js"></script>
+<script src="js/00-core.js"></script>
+<script src="js/01-state.js"></script>
+<script src="js/02-db.js"></script>
+<script src="js/03-ai.js"></script>
+<script src="js/04-coach.js"></script>
+<script src="js/05-chat.js"></script>
+<script src="js/06-home.js"></script>
+<script src="js/07-timer-calendar.js"></script>
+<script src="js/08-analytics.js"></script>
+<script src="js/09-misc.js"></script>
+<script src="js/10-apply.js"></script>
+<script src="js/12-textbooks.js"></script>
+<script src="js/13-exam-plan.js"></script>
+<script src="js/14-kyotsu.js"></script>
+<script src="js/15-past-exams.js"></script>
+<script src="js/11-boot.js"></script>
+</body>
+</html>

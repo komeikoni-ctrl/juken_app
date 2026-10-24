@@ -1,0 +1,26 @@
+{
+  "name": "受験管理アプリ 2027",
+  "short_name": "受験管理",
+  "description": "学習時間・模試・志望校・出願をまとめて管理し、AIコーチに相談できる受験生用アプリ",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "ja",
+  "background_color": "#F2F2F7",
+  "theme_color": "#007AFF",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
