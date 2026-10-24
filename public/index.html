@@ -503,6 +503,117 @@ input[type=text],input[type=number],input[type=date],input[type=time],select,tex
 .chat-file-remove:hover{color:var(--a2);}
 .cb-img{max-width:220px;max-height:200px;border-radius:10px;display:block;margin-top:6px;object-fit:cover;cursor:pointer;transition:max-width .2s,max-height .2s;}
 .cb-pdf{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:6px 10px;background:rgba(220,79,30,0.1);border-radius:8px;font-size:12px;font-weight:700;color:#dc4f1e;}
+
+/* ================= 見た目のスタイル：ぷっくりポップ =================
+   くらしアプリの「ぷっくりポップ」と同じ考え方：くっきりした線と、ずらした影。シールのような見た目。
+   設定 →「外観」で選ぶ（html に data-style="pop"）。ライト／ダークとは別に選べる。
+   既存のCSSは !important が多く、OSがダークのときに効く @media の指定もあるので、
+   html:root[...] で詳細度を上げて確実に上書きする */
+html:root[data-style="pop"]{
+  --pop-line:#2A2630; --pop-card:#FFFFFF; --pop-bg:#FFF8EF; --pop-sub:#FFF3E2;
+  --pop-yellow:#FFD84D; --pop-pink:#FF9EB8; --pop-blue:#7CC8FF; --pop-mint:#7FDDB4; --pop-ink:#2A2630;
+  --card:var(--pop-card); --bg:var(--pop-bg); --sh:none; --border:rgba(42,38,48,0.18); --r:20px;
+  --nav-bg:var(--pop-card); --glass-blur:none;
+}
+html:root[data-style="pop"][data-theme="dark"]{
+  --pop-line:rgba(240,232,236,0.85); --pop-card:#241F29; --pop-bg:#16131A; --pop-sub:#2C2632;
+  --pop-yellow:#E9BC2E; --pop-ink:#111111; --border:rgba(255,255,255,0.16);
+  --text:#F4EEF2;
+}
+/* 背景：水玉。ふわふわ浮く光の玉は消す */
+html:root[data-style="pop"] body{
+  background:
+    radial-gradient(circle at 20% 30%, var(--pop-yellow) 0 3px, transparent 3.6px) 0 0/90px 90px,
+    radial-gradient(circle at 70% 62%, var(--pop-pink) 0 4px, transparent 4.6px) 0 0/120px 120px,
+    radial-gradient(circle at 42% 82%, var(--pop-blue) 0 2.5px, transparent 3.1px) 0 0/70px 70px,
+    var(--pop-bg) !important;
+}
+html:root[data-style="pop"] body::before, html:root[data-style="pop"] body::after{ display:none }
+
+/* カード・折りたたみ・数字の箱・ポップアップ：白地＋太い線＋ずらした影 */
+html:root[data-style="pop"] .card, html:root[data-style="pop"] .stat, html:root[data-style="pop"] .mo{
+  background:var(--pop-card) !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+  border:2px solid var(--pop-line) !important; box-shadow:4px 4px 0 var(--pop-line) !important; border-radius:20px !important;
+}
+html:root[data-style="pop"] .card:active{ transform:none }
+html:root[data-style="pop"] .expand-hdr{
+  background:var(--pop-card) !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+  border:2px solid var(--pop-line) !important; box-shadow:3px 3px 0 var(--pop-line); border-radius:18px !important;
+}
+html:root[data-style="pop"] .expand-hdr.open{ box-shadow:none; border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; border-bottom:2px dashed var(--border) !important }
+html:root[data-style="pop"] .expand-body{
+  background:var(--pop-card) !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+  border:2px solid var(--pop-line) !important; border-top:none !important; box-shadow:4px 4px 0 var(--pop-line);
+}
+html:root[data-style="pop"] .expand-hdr:hover{ background:var(--pop-sub) !important }
+/* 見出しと ▼ を1行に並べる（いつもの見た目では ▼ が次の行に落ちている） */
+html:root[data-style="pop"] .expand-hdr{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 16px; cursor:pointer }
+
+/* カードの見出しはシールのような丸いラベルに */
+html:root[data-style="pop"] .card-hdr-title{
+  display:inline-flex; padding:2px 10px; border-radius:999px; background:var(--pop-card);
+  border:2px solid var(--pop-line); box-shadow:2px 2px 0 var(--pop-line); color:var(--text); letter-spacing:.3px;
+}
+
+/* 上のタブ */
+html:root[data-style="pop"] .top-nav{
+  background:var(--pop-card) !important; backdrop-filter:none; -webkit-backdrop-filter:none;
+  border:2px solid var(--pop-line) !important; box-shadow:3px 3px 0 var(--pop-line) !important;
+}
+html:root[data-style="pop"] .nav-btn.active{ color:var(--text) !important }
+html:root[data-style="pop"] #nav-indicator{
+  background:var(--pop-yellow) !important; border:2px solid var(--pop-line); mix-blend-mode:normal !important;
+  backdrop-filter:none !important; -webkit-backdrop-filter:none !important; z-index:-1 !important;
+}
+html:root[data-style="pop"] .app-logo{ color:var(--text) }
+
+/* ボタン：押すと影の分だけ沈む */
+html:root[data-style="pop"] .btn, html:root[data-style="pop"] .send-btn, html:root[data-style="pop"] .t-btn{
+  border:2px solid var(--pop-line) !important; box-shadow:3px 3px 0 var(--pop-line) !important;
+  backdrop-filter:none; -webkit-backdrop-filter:none; transition:transform .08s, box-shadow .08s;
+}
+html:root[data-style="pop"] .btn:active, html:root[data-style="pop"] .send-btn:active, html:root[data-style="pop"] .t-btn:active{
+  transform:translate(3px,3px) !important; box-shadow:0 0 0 var(--pop-line) !important;
+}
+html:root[data-style="pop"] .btn-p, html:root[data-style="pop"] .send-btn{ background:var(--pop-yellow) !important; color:var(--pop-ink) !important }
+html:root[data-style="pop"] .btn-s{ background:var(--pop-card) !important; color:var(--text) !important }
+html:root[data-style="pop"] .btn:disabled{ opacity:.5; box-shadow:none !important }
+html:root[data-style="pop"] .tag, html:root[data-style="pop"] .tm-btn{
+  border:2px solid var(--pop-line) !important; box-shadow:2px 2px 0 var(--pop-line); background:var(--pop-card); color:var(--text);
+}
+html:root[data-style="pop"] .tm-btn.on{ background:var(--pop-yellow) !important; color:var(--pop-ink) !important }
+html:root[data-style="pop"] .chat-attach-btn{ border:2px solid var(--pop-line); background:var(--pop-card); box-shadow:2px 2px 0 var(--pop-line) }
+
+/* 入力欄 */
+html:root[data-style="pop"] input[type=text], html:root[data-style="pop"] input[type=number], html:root[data-style="pop"] input[type=date],
+html:root[data-style="pop"] input[type=time], html:root[data-style="pop"] select, html:root[data-style="pop"] textarea,
+html:root[data-style="pop"] input[type=password], html:root[data-style="pop"] input[type=email], html:root[data-style="pop"] input[type=search],
+html:root[data-style="pop"] .chat-inp{
+  width:100%; padding:9px 12px; font-size:14px; font-family:inherit;
+  background:var(--pop-card) !important; color:var(--text) !important;
+  border:2px solid var(--pop-line) !important; border-radius:14px !important; box-shadow:none !important;
+}
+html:root[data-style="pop"] input:focus, html:root[data-style="pop"] select:focus, html:root[data-style="pop"] textarea:focus{
+  outline:3px solid var(--pop-yellow); outline-offset:1px;
+}
+
+/* チャットの吹き出し */
+html:root[data-style="pop"] .cb{ border:2px solid var(--pop-line); box-shadow:2px 2px 0 var(--pop-line) }
+html:root[data-style="pop"] .cb-ai{ background:var(--pop-sub) }
+html:root[data-style="pop"] .cb-user{ background:var(--pop-yellow); color:var(--pop-ink) }
+
+/* 小物：バッジ・進み具合の棒・トースト・タイマー */
+html:root[data-style="pop"] .badge{ border:1.5px solid var(--pop-line) }
+html:root[data-style="pop"] .pb{ border:1.5px solid var(--pop-line); height:9px; border-radius:6px }
+html:root[data-style="pop"] .toast{ border:2px solid var(--pop-line); box-shadow:3px 3px 0 var(--pop-line) }
+html:root[data-style="pop"] .timer-wrap{ border:2px solid var(--pop-line); box-shadow:4px 4px 0 var(--pop-line); border-radius:20px }
+html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:var(--pop-ink); border:2px solid var(--pop-line) }
+
+/* 設定の「見た目のスタイル」選択肢 */
+.style-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.style-pick button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 14px}
+.style-pick .sp-name{font-size:14px;font-weight:800}
+.style-pick .sp-desc{font-size:11px;font-weight:500;opacity:.75;line-height:1.4}
 /* --- iOS 26 流体デザイン & スマホ対応 強制適用 --- */
 .nav-btn.active {
   color: var(--accent) !important;
@@ -1002,7 +1113,7 @@ input[type=text],input[type=number],input[type=date],input[type=time],select,tex
 
   <div class="expand-section">
     <div class="expand-hdr open" onclick="toggleExpand(this)">
-      <div class="expand-title">🌓 外観（iOS 26 スタイル）</div>
+      <div class="expand-title">🌓 外観（明るさ・見た目のスタイル）</div>
       <span class="expand-arrow">▼</span>
     </div>
     <div class="expand-body open">
@@ -1011,6 +1122,8 @@ input[type=text],input[type=number],input[type=date],input[type=time],select,tex
         <button class="btn btn-s btn-sm" onclick="setTheme('dark')" id="th-dark">🌙 ダーク</button>
         <button class="btn btn-s btn-sm" onclick="setTheme('system')" id="th-system">⚙️ 自動</button>
       </div>
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-top:16px">見た目のスタイル（明るさとは別に選べます）</div>
+      <div class="style-pick" id="style-pick"></div>
     </div>
   </div>
   

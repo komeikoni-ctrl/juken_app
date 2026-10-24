@@ -320,6 +320,21 @@ SelfTest.add('モデルの自動切替: 系統・保存値・チャット用だ�
   }
 });
 
+SelfTest.add('見た目のスタイル: ぷっくりポップの切替', () => {
+  const html = document.documentElement;
+  const before = html.getAttribute('data-style');
+  try {
+    applyUiStyle('pop');
+    assertEq(html.getAttribute('data-style'), 'pop', 'ぷっくりポップで data-style="pop" になること');
+    applyUiStyle('glass');
+    assert(!html.hasAttribute('data-style'), 'いつもの見た目では属性を外すこと');
+    applyUiStyle('unknown-style');
+    assert(!html.hasAttribute('data-style'), '知らないスタイル名はいつもの見た目にすること');
+  } finally {
+    applyUiStyle(before || S.userStyle);
+  }
+});
+
 SelfTest.add('モデル選択: 既定値と未知IDの扱い', () => {
   assert(AVAILABLE_MODELS.includes(DEFAULT_MODEL), '既定モデルが一覧に含まれること');
   assert(!AVAILABLE_MODELS.includes('gemini-2.0-flash'), '提供終了モデルが一覧にないこと');

@@ -189,6 +189,8 @@ const renderSettings = () => {
   if (nameEl) nameEl.value = S.userName || '';
   if (gradeEl) gradeEl.value = S.userGrade || '高校3年';
   if (nijiEl) nijiEl.value = S.nijiDate || '2027-02-25';
+  // 別の端末で変えた見た目のスタイルもこの端末に反映する
+  if (typeof applyUiStyle === 'function') applyUiStyle(S.userStyle);
   // 別の端末で変更したAIモデルの設定をこの端末にも反映する
   const modelEl = document.getElementById('set-model');
   if (modelEl && S.aiModel && AVAILABLE_MODELS.includes(S.aiModel) && localStorage.getItem('geminiModel') !== S.aiModel) {
@@ -451,6 +453,31 @@ window.setTheme = (mode) => {
   });
   if(typeof showToast === 'function') showToast(`外観を「${mode === 'light' ? 'ライト' : mode === 'dark' ? 'ダーク' : '自動同期'}」に設定しました`);
 };
+
+// --- 🍬 見た目のスタイル（形や質感。ライト／ダークとは別に選べる）---
+// くらしアプリの「画面のスタイル」と同じ考え方。html の data-style 属性で切り替え、CSS は index.html にある。
+// 選んだスタイルは S.userStyle に入れて、ライト／ダークと同じく端末間で同期する。
+const UI_STYLES = [
+  { id: 'glass', name: '🪟 いつもの', desc: 'すりガラスのような、やわらかい見た目' },
+  { id: 'pop',   name: '🍬 ぷっくりポップ', desc: 'くっきりした線と影。シールのよう' }
+];
+const applyUiStyle = (id) => {
+  const st = UI_STYLES.find(s => s.id === id) || UI_STYLES[0];
+  const html = document.documentElement;
+  if (st.id === 'glass') html.removeAttribute('data-style'); else html.setAttribute('data-style', st.id);
+  const box = document.getElementById('style-pick');
+  if (box) box.innerHTML = UI_STYLES.map(s => `<button class="btn ${s.id === st.id ? 'btn-p' : 'btn-s'}" onclick="setUiStyle('${s.id}')" aria-pressed="${s.id === st.id}">
+      <span class="sp-name">${s.name}${s.id === st.id ? ' ✓' : ''}</span><span class="sp-desc">${s.desc}</span></button>`).join('');
+};
+window.setUiStyle = (id) => {
+  if (!UI_STYLES.some(s => s.id === id)) return;
+  S.userStyle = id;
+  if (typeof DbService !== 'undefined') DbService.setMainProfile();
+  applyUiStyle(id);
+  if (typeof showToast === 'function') showToast(`見た目を「${UI_STYLES.find(s => s.id === id).name.replace(/^\S+\s/, '')}」にしました`);
+};
+// 画面が一瞬いつもの見た目で出てから切り替わらないよう、読み込んだ時点ですぐ当てる（S は端末内の保存から読み込み済み）
+applyUiStyle(S.userStyle);
 
 const applyTheme = (mode) => {
   const html = document.documentElement;
