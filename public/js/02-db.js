@@ -554,13 +554,46 @@ const Backup = {
     const last = +(localStorage.getItem('jukenLastBackupAt') || 0);
     if (!force && Date.now() - last < 7 * 86400000) return false;
     try {
+      const snap = Backup.snapshot();
       const list = (await Blobs.get('backups')) || [];
-      list.unshift(Backup.snapshot());
+      list.unshift(snap);
       await Blobs.set('backups', list.slice(0, 4));   // 直近4世代だけ残す
       localStorage.setItem('jukenLastBackupAt', String(Date.now()));
       console.log('💾 自動バックアップを作成しました');
+      await Backup.saveCloud(snap);   // 端末内とは別にクラウドにも残す（失敗しても無視する）
       return true;
     } catch (e) { console.warn('バックアップ失敗', e); return false; }
+  },
+  // クラウド（Firestore）にも同じスナップショットを残す。URL移行時の引き継ぎ用。
+  // DOC_ID を使うので、サンドボックス時はサンドボックス側にだけ書かれる。
+  saveCloud: async (snap) => {
+    try {
+      if (!db || !snap) return;
+      const json = JSON.stringify(snap.data);
+      // Firestore の1ドキュメント上限（1MiB）を超えそうなら保存しない
+      if (json.length > 800000) { console.warn('☁️ バックアップが大きいためクラウド保存をスキップしました', json.length); return; }
+      const col = db.collection('appData').doc(DOC_ID).collection('backups');
+      await col.doc(String(snap.createdAt)).set({ version: snap.version, createdAt: snap.createdAt, date: snap.date, json });
+      // 最新4件だけ残して古いものを消す
+      const qs = await col.orderBy('createdAt', 'desc').get();
+      const docs = qs.docs || [];
+      await Promise.all(docs.slice(4).map(d => d.ref.delete()));
+    } catch (e) { console.warn('☁️ クラウドバックアップ失敗', e); }
+  },
+  // クラウドのバックアップ一覧（新しい順）。取れなければ空配列。
+  listCloud: async () => {
+    try {
+      if (!db) return [];
+      const qs = await db.collection('appData').doc(DOC_ID).collection('backups').orderBy('createdAt', 'desc').get();
+      const out = [];
+      (qs.docs || []).forEach(d => {
+        try {
+          const v = d.data();
+          out.push({ version: v.version, createdAt: v.createdAt, date: v.date, data: JSON.parse(v.json) });
+        } catch (e) { /* 壊れた1件は読み飛ばす */ }
+      });
+      return out;
+    } catch (e) { console.warn('☁️ クラウドバックアップの取得に失敗', e); return []; }
   },
   list: async () => (await Blobs.get('backups')) || [],
   download: (snap) => {
