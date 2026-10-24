@@ -1,0 +1,68 @@
+# main に変更が入るたびに、public/ を GitHub Pages に公開する。
+# Muse など別の場所で変更しても自動で公開されるが、下の「公開前のチェック」に通らない変更は公開しない
+# （壊れたまま公開されて、スマホのアプリが開かなくなるのを防ぐ）。
+name: 公開（GitHub Pages）
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 続けて push されたときは、最後の分だけ公開すればよい
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 公開前のチェック
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: JavaScript の書き間違いがないか
+        run: |
+          for f in public/js/*.js public/sw.js; do
+            node --check "$f" || { echo "::error file=$f::構文エラー"; exit 1; }
+          done
+
+      - name: 公開してはいけないファイルが混ざっていないか
+        run: |
+          # 教材の本文（著作物）や、manifest.json 以外の .json（データの書き出しなど）は公開しない
+          if [ -d public/textbook-data ] || [ -d textbook-data ]; then echo "::error::教材の本文フォルダが入っています"; exit 1; fi
+          bad=$(find public -name '*.json' ! -path 'public/manifest.json')
+          if [ -n "$bad" ]; then echo "::error::公開してはいけない .json があります: $bad"; exit 1; fi
+
+      - name: 読み込むJSがそろっているか（index.html と sw.js）
+        run: |
+          for f in $(grep -o 'src="js/[^"]*\.js"' public/index.html | sed 's/src="//;s/"//'); do
+            [ -f "public/$f" ] || { echo "::error::index.html が読み込む $f がありません"; exit 1; }
+            grep -q "'./$f'" public/sw.js || { echo "::error::sw.js の PRECACHE に $f がありません（オフラインで開けなくなる）"; exit 1; }
+          done
+
+      - name: バージョンが書かれているか
+        run: grep -q "APP_VERSION = '" public/js/version.js || { echo "::error::version.js に APP_VERSION がありません"; exit 1; }
+
+  deploy:
+    name: 公開
+    needs: check
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: public
+      - id: deployment
+        uses: actions/deploy-pages@v5

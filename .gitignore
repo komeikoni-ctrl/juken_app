@@ -83,3 +83,7 @@ __pycache__/
 # Windows が勝手に作るファイル
 Thumbs.db
 desktop.ini
+
+# Google ドライブのバックアップが作る一時ファイル
+.tmp.driveupload/
+.tmp.drivedownload/

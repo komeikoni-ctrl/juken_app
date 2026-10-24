@@ -2,7 +2,7 @@
 
 大学受験（2027年度入試）のための個人用の学習・出願管理アプリ。スマホのホーム画面に置いて使うWebアプリ（PWA）。
 
-- 公開URL: https://juken2027-63058.web.app （Firebase Hosting）
+- 公開URL: https://komeikoni-ctrl.github.io/juken_app/ （GitHub Pages）
 - データの保存: Firebase Firestore（端末どうしで同期）
 - AI: Google Gemini API（キーは各端末のブラウザ内にだけ保存し、同期もコードへの記載もしない）
 
@@ -51,9 +51,11 @@ JSは `index.html` の `<script>` の順に読み込まれる。新しいJSを�
 
 ## 動作確認と公開
 
+- **main に push すると自動で公開される**（`.github/workflows/pages.yml`）。公開前に、JSの構文・公開してはいけないファイル・`index.html` と `sw.js` の読み込み一覧を自動でチェックし、通らなければ公開しない。
+- 変更したら `public/js/version.js` の `APP_VERSION` を上げる（スマホに「新しいバージョンがあります」と出す合図。上げないと古い版が残る）。
+- 新しいJSを足したら、`index.html` の `<script>` と `sw.js` の `PRECACHE` の両方に書く。
 - ローカルでは必ず `http://localhost:5000/?sandbox=1` で開く（本番とは別のテスト用データに読み書きする）。
 - 設定タブの「セルフチェック」（`SelfTest.run()`）が全件通ることを確かめる。
-- 公開: `public/js/version.js` の `APP_VERSION` を上げてから `firebase deploy --only hosting --project juken2027-63058`
 
 ## このリポジトリに入れていないもの
 
