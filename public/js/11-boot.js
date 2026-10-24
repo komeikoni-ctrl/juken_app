@@ -178,6 +178,75 @@ window.emptyTrash = () => {
   });
 };
 
+// バックアップに含まれていてよい状態キー（01-state.js の defaultS 由来）
+const BACKUP_KNOWN_KEYS = ['tasks', 'unis', 'mocks', 'events', 'dailyLogs', 'studyTime', 'scoreTargets', 'timerLogs', 'timetable', 'homework', 'mockSchedule', 'specials', 'extras', 'repeatEvents', 'chatHistory', 'chatThreads', 'notes', 'heatmapData', 'applications', 'pastExams', 'trash', 'userName', 'userGrade', 'nijiDate', 'aiModel'];
+
+// ダウンロードしたバックアップファイル（またはデータ本体そのもの）を検査し、
+// {version, createdAt, date, data} の形にそろえて返す。おかしければ日本語のエラーを投げる。
+const validateBackupSnapshot = (obj) => {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('バックアップファイルの形式が正しくありません');
+  const hasData = obj.data !== undefined && obj.data !== null && typeof obj.data === 'object' && !Array.isArray(obj.data);
+  const data = hasData ? obj.data : obj;   // data ラッパーが無い「データ本体だけ」の形も受け付ける
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('バックアップにデータが含まれていません');
+  if (!BACKUP_KNOWN_KEYS.some(k => Object.prototype.hasOwnProperty.call(data, k))) throw new Error('受験アプリのバックアップデータが見つかりませんでした');
+  const createdAt = (hasData && typeof obj.createdAt === 'number' && obj.createdAt > 0) ? obj.createdAt : Date.now();
+  return {
+    version: hasData && obj.version ? obj.version : '',
+    createdAt,
+    date: (hasData && obj.date) || new Date(createdAt).toISOString().slice(0, 10),
+    data
+  };
+};
+window.validateBackupSnapshot = validateBackupSnapshot;
+
+// 復元確認メッセージ用に、ざっくりした件数を数える
+const backupCountsText = (data) => {
+  const parts = [];
+  const n = (k) => Array.isArray(data?.[k]) ? data[k].length : 0;
+  if (n('tasks')) parts.push(`タスク ${n('tasks')}件`);
+  if (n('unis')) parts.push(`志望校 ${n('unis')}件`);
+  if (n('mocks')) parts.push(`模試 ${n('mocks')}件`);
+  if (n('applications')) parts.push(`出願 ${n('applications')}件`);
+  const logs = data?.dailyLogs && typeof data.dailyLogs === 'object' ? Object.keys(data.dailyLogs).length : 0;
+  if (logs) parts.push(`学習記録 ${logs}日分`);
+  return parts.length ? parts.join(' ／ ') : '記録はほぼ空です';
+};
+
+// スナップショットから実際に復元する処理（端末内・クラウド・ファイル共通）
+const restoreFromSnapshot = async (snap) => {
+  // 念のため、復元する直前の状態もバックアップに残しておく
+  await Backup.run(true);
+  // いまあるデータのID。バックアップに無いものは、あとでクラウドからも消す
+  // （消さないと、次の同期で「バックアップより後に作ったデータ」が戻ってきて、復元前後が混ざる）
+  const beforeIds = {};
+  SYNC_COLS.forEach(col => { beforeIds[col] = (S[col] || []).map(x => x?.id).filter(Boolean); });
+  const beforeLogKeys = Object.keys(S.dailyLogs || {});
+  const keepPage = S.currentPage;
+
+  const restored = Store.safeState(snap.data);
+  // safeState は既定値にマージするだけなので、日別ログは丸ごと差し替える
+  Object.assign(S, restored);
+  S.dailyLogs = snap.data?.dailyLogs ? JSON.parse(JSON.stringify(snap.data.dailyLogs)) : {};
+  S.calMonth = new Date(); S.currentPage = keepPage;
+  showToast('⏪ 復元中...（画面を閉じないでください）', 'warn', 4000);
+
+  // DbService は書き込み完了（サーバー応答）まで待つので、待たずに投げてから最後にまとめて待つ
+  const jobs = [DbService.setMainProfile(), DbService.replaceField('timetable', S.timetable || {})];
+  for (const col of SYNC_COLS) {
+    const items = Array.isArray(S[col]) ? S[col] : [];
+    const keep = new Set(items.map(x => x?.id));
+    items.forEach(item => jobs.push(DbService.set(col, item)));
+    beforeIds[col].filter(id => !keep.has(id)).forEach(id => jobs.push(DbService.del(col, id)));
+  }
+  // 日別ログ：バックアップにある日は書き戻し、無い日は消す（setDailyLog は無い日を削除として扱う）
+  new Set([...Object.keys(S.dailyLogs), ...beforeLogKeys]).forEach(d => jobs.push(DbService.setDailyLog(d)));
+  if (navigator.onLine) await Promise.race([Promise.allSettled(jobs), new Promise(r => setTimeout(r, 20000))]);
+  try { rebuildStudyTotals({ persist: false }); } catch (e) {}
+  refreshAllViews(); initAllCharts();
+  showToast('⏪ 復元しました');
+};
+window.restoreFromSnapshot = restoreFromSnapshot;
+
 window.renderBackups = async () => {
   const el = document.getElementById('backup-c');
   if (!el) return;
@@ -185,6 +254,8 @@ window.renderBackups = async () => {
   const last = +(localStorage.getItem('jukenLastBackupAt') || 0);
   el.innerHTML = `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">
       週に1回、自動でこの端末に保存します（最新4件）${last ? '<br>最終バックアップ: ' + new Date(last).toLocaleString('ja-JP') : ''}
+      <br>📌 学習データ本体はクラウド同期で、新しいURLでも自動で引き継がれます。
+      <br>📌 端末内バックアップと Gemini APIキーは端末・URLごとに別です。旧URLでは「保存」でファイルに書き出し、新URLでは下の「ファイルから復元」で読み込めます（APIキーは再入力が必要です）。
     </div>`
     + (list.length
         ? list.map((b, i) => `<div class="row" style="padding:6px 0">
@@ -196,7 +267,30 @@ window.renderBackups = async () => {
             <button class="btn btn-s btn-sm" onclick="restoreBackup(${i})">復元</button>
           </div>`).join('')
         : '<div style="font-size:12px;color:var(--muted)">まだバックアップがありません</div>')
-    + `<button class="btn btn-s btn-sm mt12" onclick="runBackupNow()">💾 いますぐバックアップを作る</button>`;
+    + `<div class="mt12" style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-s btn-sm" onclick="runBackupNow()">💾 いますぐバックアップを作る</button>
+        <button class="btn btn-s btn-sm" onclick="importBackup()">📂 バックアップファイルから復元</button>
+      </div>
+      <div id="backup-cloud-c"></div>`;
+  await window.renderCloudBackups();
+};
+// クラウドバックアップの一覧（db が無いときは何も出さない）
+window.renderCloudBackups = async () => {
+  const el = document.getElementById('backup-cloud-c');
+  if (!el) return;
+  if (typeof db === 'undefined' || !db) { el.innerHTML = ''; return; }
+  const cloud = await Backup.listCloud();
+  window._cloudBackups = cloud;
+  el.innerHTML = `<div style="font-size:12px;color:var(--muted);margin:14px 0 4px">☁️ クラウドバックアップ（最新4件）</div>`
+    + (cloud.length
+        ? cloud.map((b, i) => `<div class="row" style="padding:6px 0">
+            <div style="flex:1">
+              <div class="row-title" style="font-size:13px">${esc(b.date || '')}</div>
+              <div class="row-sub">v${esc(b.version || '?')} ／ ${new Date(b.createdAt).toLocaleString('ja-JP')}</div>
+            </div>
+            <button class="btn btn-s btn-sm" onclick="restoreCloudBackup(${i})">復元</button>
+          </div>`).join('')
+        : '<div style="font-size:12px;color:var(--muted)">まだクラウドバックアップがありません</div>');
 };
 window.runBackupNow = async () => {
   await Backup.run(true);
@@ -213,37 +307,38 @@ window.restoreBackup = async (i) => {
   if (!snap) return;
   showConfirm('⏪ バックアップから復元',
     `${snap.date} 時点の状態に戻します。いまのデータは上書きされます。よろしいですか？`, '復元する', async () => {
-      // 念のため、復元する直前の状態もバックアップに残しておく
-      await Backup.run(true);
-      // いまあるデータのID。バックアップに無いものは、あとでクラウドからも消す
-      // （消さないと、次の同期で「バックアップより後に作ったデータ」が戻ってきて、復元前後が混ざる）
-      const beforeIds = {};
-      SYNC_COLS.forEach(col => { beforeIds[col] = (S[col] || []).map(x => x?.id).filter(Boolean); });
-      const beforeLogKeys = Object.keys(S.dailyLogs || {});
-      const keepPage = S.currentPage;
-
-      const restored = Store.safeState(snap.data);
-      // safeState は既定値にマージするだけなので、日別ログは丸ごと差し替える
-      Object.assign(S, restored);
-      S.dailyLogs = snap.data?.dailyLogs ? JSON.parse(JSON.stringify(snap.data.dailyLogs)) : {};
-      S.calMonth = new Date(); S.currentPage = keepPage;
-      showToast('⏪ 復元中...（画面を閉じないでください）', 'warn', 4000);
-
-      // DbService は書き込み完了（サーバー応答）まで待つので、待たずに投げてから最後にまとめて待つ
-      const jobs = [DbService.setMainProfile(), DbService.replaceField('timetable', S.timetable || {})];
-      for (const col of SYNC_COLS) {
-        const items = Array.isArray(S[col]) ? S[col] : [];
-        const keep = new Set(items.map(x => x?.id));
-        items.forEach(item => jobs.push(DbService.set(col, item)));
-        beforeIds[col].filter(id => !keep.has(id)).forEach(id => jobs.push(DbService.del(col, id)));
-      }
-      // 日別ログ：バックアップにある日は書き戻し、無い日は消す（setDailyLog は無い日を削除として扱う）
-      new Set([...Object.keys(S.dailyLogs), ...beforeLogKeys]).forEach(d => jobs.push(DbService.setDailyLog(d)));
-      if (navigator.onLine) await Promise.race([Promise.allSettled(jobs), new Promise(r => setTimeout(r, 20000))]);
-      try { rebuildStudyTotals({ persist: false }); } catch (e) {}
-      refreshAllViews(); initAllCharts();
-      showToast('⏪ 復元しました');
+      await restoreFromSnapshot(snap);
     });
+};
+window.restoreCloudBackup = async (i) => {
+  const cloud = window._cloudBackups || await Backup.listCloud();
+  const snap = cloud[i];
+  if (!snap) return;
+  showConfirm('☁️ クラウドバックアップから復元',
+    `${snap.date} 時点の状態に戻します。いまのデータは上書きされます。よろしいですか？`, '復元する', async () => {
+      await restoreFromSnapshot(snap);
+    });
+};
+// ダウンロードしておいたバックアップファイル（.json）を読み込んで復元する
+window.importBackup = () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      const snap = validateBackupSnapshot(parsed);
+      showConfirm('📂 バックアップファイルから復元',
+        `${snap.date} 時点のバックアップ（v${snap.version || '?'}）に戻します。${backupCountsText(snap.data)}。いまのデータは上書きされます。よろしいですか？`, '復元する', async () => {
+          await restoreFromSnapshot(snap);
+        });
+    } catch (e) {
+      showToast('📂 バックアップファイルを読み込めませんでした: ' + (e.message || e), 'error');
+    }
+  };
+  input.click();
 };
 
 // ------------------------------------------------------------
@@ -550,6 +645,25 @@ SelfTest.add('同期: サーバーへ送る形に整える', () => {
   const p = profileForServer();
   assert(!('currentPage' in p) && !('calMonth' in p), '画面の状態は同期しないこと');
   assert(!('applications' in p) && !('trash' in p), '一覧データはプロフィールに入れないこと');
+});
+
+SelfTest.add('バックアップ検証: 正しいスナップショットを通す', () => {
+  const snap = validateBackupSnapshot({ version: '2027.10.24-4', createdAt: 1760000000000, date: '2026-10-24', data: { tasks: [{ id: 't1' }], dailyLogs: {} } });
+  assertEq(snap.version, '2027.10.24-4');
+  assertEq(snap.createdAt, 1760000000000);
+  assertEq(snap.date, '2026-10-24');
+  assertEq(snap.data.tasks.length, 1);
+  const bare = validateBackupSnapshot({ tasks: [], unis: [] });
+  assert(Array.isArray(bare.data.tasks), 'データ本体だけの形も受け付けること');
+});
+
+SelfTest.add('バックアップ検証: おかしなデータは弾く', () => {
+  const bad = [null, undefined, '文字列', 42, [], {}, { data: null }, { data: '文字列' }, { data: {} }, { foo: 1 }];
+  for (const b of bad) {
+    let threw = false;
+    try { validateBackupSnapshot(b); } catch (e) { threw = true; assert(e.message && e.message.length > 0, '日本語のエラーメッセージがあること'); }
+    assert(threw, `弾くべきデータを素通ししました: ${JSON.stringify(b)}`);
+  }
 });
 
 SelfTest.add('エスケープ: HTMLタグを無害化', () => {
