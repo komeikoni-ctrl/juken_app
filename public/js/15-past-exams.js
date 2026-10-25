@@ -64,7 +64,8 @@ const pastResult = (r) => {
   const engFail = !!(sc.engMin && en && en.pts != null && en.pts < sc.engMin);
   const diff = complete && min != null ? score - min : null;
   const diffPct = diff != null ? Math.round(diff / max * 1000) / 10 : null;
-  return { sc, parts, score, max, complete, min, minAssumed, engFail, diff, diffPct, pct: Math.round(score / max * 100) };
+  // 得点率は全科目そろったときだけ出す（一部の科目だけで満点に対する率を出すと不当に低く見える）
+  return { sc, parts, score, max, complete, min, minAssumed, engFail, diff, diffPct, pct: complete ? Math.round(score / max * 100) : null };
 };
 
 // 科目ごとに、直近 n 回の過去問の得点率（%）を平均する。記録のない科目は入れない
@@ -292,7 +293,7 @@ const renderPastList = () => {
     return `<div class="row">
       <div style="flex:1;min-width:0">
         <div class="row-title">${esc(privLabel(e))} <span style="font-size:11px;color:var(--muted);font-weight:400">${esc(e.methodLabel)}・${esc(r.year)}年度</span></div>
-        <div class="row-sub">${esc(r.date)}　${esc(sub)}　計${res.score}/${res.max}（${res.pct}%）${res.min != null ? `　最低点${res.min}${res.minAssumed ? '(2026)' : ''}` : ''}</div>
+        <div class="row-sub">${esc(r.date)}　${esc(sub)}　計${res.score}/${res.max}${res.pct != null ? `（${res.pct}%）` : ''}${res.min != null ? `　最低点${res.min}${res.minAssumed ? '(2026)' : ''}` : ''}</div>
         ${res.engFail ? `<div style="font-size:11px;color:var(--a2);font-weight:700">⚠️ 英語が基準点${res.sc.engMin}点に届いていません（合計が足りても不合格）</div>` : ''}
         ${r.memo ? `<div style="font-size:11px;color:var(--muted)">📝 ${esc(r.memo)}</div>` : ''}
       </div>

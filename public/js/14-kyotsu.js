@@ -145,11 +145,14 @@ window.renderKyotsu = () => {
   // 出願の受付が終わったら、出願前の説明は畳んで「次にやること」を前に出す
   if (left < 0) { renderKyotsuAfter(c); restoreExpandOpen(c, wasOpen); return; }
   const urgent = left >= 0 && left <= 21;
+  // 締切の表示は KYOTSU.hardDeadline.date から作る（日付を直書きすると、データ更新時に表示だけ古いまま残る）
+  const dlDate = DateManager.parseSafe(KYOTSU.hardDeadline.date);
+  const dlText = `${dlDate.getFullYear()}年${dlDate.getMonth() + 1}月${dlDate.getDate()}日（${'日月火水木金土'[dlDate.getDay()]}）`;
   const badge = left > 0
     ? `<div style="background:${urgent ? 'var(--a2)' : 'var(--accent)'};color:#fff;border-radius:12px;padding:10px 12px;margin-bottom:10px">
          <div style="font-size:11px;opacity:.9">${esc(KYOTSU.hardDeadline.what)}の締切まで</div>
          <div style="font-size:22px;font-weight:800;line-height:1.2">あと ${left} 日</div>
-         <div style="font-size:11px;opacity:.9">2026年10月2日（金）${esc(KYOTSU.hardDeadline.time)} まで</div>
+         <div style="font-size:11px;opacity:.9">${dlText}${esc(KYOTSU.hardDeadline.time)} まで</div>
        </div>`
     : left === 0
       ? `<div style="background:var(--a2);color:#fff;border-radius:12px;padding:10px 12px;margin-bottom:10px"><div style="font-size:18px;font-weight:800">今日が締切です（17:00まで）</div></div>`

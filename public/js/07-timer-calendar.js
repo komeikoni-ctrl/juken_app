@@ -605,7 +605,9 @@ const recordStudy = (s, m, dKey) => {
   if (!s || !Number.isFinite(m) || m <= 0) return;
   if(!dKey) dKey = DateManager.getTodayStr();
   S.studyTime[s]=(S.studyTime[s]||0)+m; S.totalMinutes+=m;
-  const d = DateManager.parseSafe(dKey); S.weekdayTime[d.getDay()]+=m; S.monthlyTime[d.getMonth()]+=m;
+  // 壊れた日付キーでは曜日別・月別に足さない（parseSafe は無効な日付を返す）
+  const d = DateManager.parseSafe(dKey);
+  if (!isNaN(d)) { S.weekdayTime[d.getDay()] = (S.weekdayTime[d.getDay()] || 0) + m; S.monthlyTime[d.getMonth()] = (S.monthlyTime[d.getMonth()] || 0) + m; }
   if(!S.dailyLogs[dKey]) S.dailyLogs[dKey]={total:0,subjects:{}};
   if(!S.dailyLogs[dKey].subjects) S.dailyLogs[dKey].subjects={};
   S.dailyLogs[dKey].total=(Number(S.dailyLogs[dKey].total)||0)+m; S.dailyLogs[dKey].subjects[s]=(S.dailyLogs[dKey].subjects[s]||0)+m;
@@ -624,8 +626,11 @@ const unrecordStudy = (s, m, dKey) => {
   S.studyTime[s] = Math.max(0, (S.studyTime[s] || 0) - m);
   S.totalMinutes = Math.max(0, (S.totalMinutes || 0) - m);
   const d = DateManager.parseSafe(dKey);
-  S.weekdayTime[d.getDay()] = Math.max(0, (S.weekdayTime[d.getDay()] || 0) - m);
-  S.monthlyTime[d.getMonth()] = Math.max(0, (S.monthlyTime[d.getMonth()] || 0) - m);
+  // 壊れた日付キーでは曜日別・月別から引かない（recordStudy と対称）
+  if (!isNaN(d)) {
+    S.weekdayTime[d.getDay()] = Math.max(0, (S.weekdayTime[d.getDay()] || 0) - m);
+    S.monthlyTime[d.getMonth()] = Math.max(0, (S.monthlyTime[d.getMonth()] || 0) - m);
+  }
   if (S.dailyLogs[dKey]) {
     S.dailyLogs[dKey].total = Math.max(0, (S.dailyLogs[dKey].total || 0) - m);
     const cur = Math.max(0, (S.dailyLogs[dKey].subjects[s] || 0) - m);

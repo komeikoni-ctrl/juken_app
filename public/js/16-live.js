@@ -449,12 +449,17 @@ const LiveFeed = {
   // bus-timetable.json が取れたら 09-misc.js の BUS_TIMETABLE を差し替えて表示し直す
   applyBusTimetable: () => {
     const t = LiveFeed.data.busTimetable;
-    const isTimes = (a) => Array.isArray(a) && a.length > 0 && a.every(s => /^\d{1,2}:\d{2}$/.test(String(s)));
+    // 時刻は 0:00〜23:59 だけ受け付ける（"25:99" のような壊れた値で次便の計算が狂うのを防ぐ）
+    const isTime = (s) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s)); return !!m && Number(m[1]) <= 23 && Number(m[2]) <= 59; };
+    const isTimes = (a) => Array.isArray(a) && a.length > 0 && a.every(isTime);
     if (!t || !isTimes(t.toSan) || !isTimes(t.toFlo)) return;
+    // 次便の判定は先頭から順に見るので、取得したデータの並び順に頼らず時刻順に並べ直す
+    const toMin = (s) => { const [h, m] = String(s).split(':').map(Number); return h * 60 + m; };
+    const sorted = (a) => a.map(String).sort((x, y) => toMin(x) - toMin(y));
     const duration = Number(t.duration) > 0 ? Number(t.duration) : (window.BUS_TIMETABLE?.duration || 53);
-    const next = { duration, toSan: t.toSan.map(String), toFlo: t.toFlo.map(String) };
+    const next = { duration, toSan: sorted(t.toSan), toFlo: sorted(t.toFlo) };
     if (Number(t.durationReturn) > 0) next.durationReturn = Number(t.durationReturn);
-    if (isTimes(t.toSanWeekend) && isTimes(t.toFloWeekend)) { next.toSanWeekend = t.toSanWeekend.map(String); next.toFloWeekend = t.toFloWeekend.map(String); }
+    if (isTimes(t.toSanWeekend) && isTimes(t.toFloWeekend)) { next.toSanWeekend = sorted(t.toSanWeekend); next.toFloWeekend = sorted(t.toFloWeekend); }
     window.BUS_TIMETABLE = next;
     if (window.updateBusTimes) window.updateBusTimes();
   },

@@ -123,11 +123,18 @@ const DateManager = {
     return `${y}-${m}-${d}`;
   },
   // 'YYYY-MM-DD' を安全にローカルのDateオブジェクトに変換（T00:00:00等のハックを排除）
+  // 壊れた文字列を「今日」として扱うと、壊れた日別ログが今日の集計に混入するため、無効な日付を返す。
+  // 呼び出し側は isNaN で判定できる。
   parseSafe: (dateStr) => {
-    if (!dateStr) return new Date();
+    if (!dateStr || typeof dateStr !== 'string') return new Date(NaN);
     const parts = dateStr.split('-');
-    if (parts.length !== 3) return new Date();
-    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    if (parts.length !== 3) return new Date(NaN);
+    if (!parts.every(p => /^\d+$/.test(p))) return new Date(NaN);
+    const y = parseInt(parts[0], 10), m = parseInt(parts[1], 10) - 1, day = parseInt(parts[2], 10);
+    const d = new Date(y, m, day);
+    // 2月30日 → 3月2日 のような繰り上がりは無効とする
+    if (d.getFullYear() !== y || d.getMonth() !== m || d.getDate() !== day) return new Date(NaN);
+    return d;
   },
   daysBetween: (targetDateStr) => {
     const today = new Date();

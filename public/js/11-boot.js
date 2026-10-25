@@ -126,6 +126,9 @@ window.resetAllData = () => {
       showToast('🗑 削除中...（画面を閉じないでください）', 'warn', 6000);
       try { await Backup.run(true); } catch (e) {}
       try { unsubscribes.forEach(u => u()); unsubscribes = []; } catch (e) {}
+      // クラウドの削除が確認できたか。確認できないまま端末内を消すと、
+      // 再読み込み後にクラウドから全データが戻り「リセットしたのに消えていない」状態になる
+      let cloudOk = true;
       if (db) {
         try {
           const root = db.collection('appData').doc(DOC_ID);
@@ -135,9 +138,16 @@ window.resetAllData = () => {
             snap.docs.forEach(d => jobs.push(d.ref.delete()));
           }
           jobs.push(root.delete());
-          if (navigator.onLine) await Promise.race([Promise.allSettled(jobs), new Promise(r => setTimeout(r, 20000))]);
-        } catch (e) { console.warn('クラウドの削除に失敗', e); }
+          if (navigator.onLine) {
+            const results = await Promise.race([Promise.allSettled(jobs), new Promise(r => setTimeout(() => r(null), 20000))]);
+            // 時間切れ、または1件でも失敗したら完了とみなさない
+            if (!results || results.some(r => r.status === 'rejected')) cloudOk = false;
+          } else {
+            cloudOk = false;   // オフラインでは削除の完了を確認できない
+          }
+        } catch (e) { console.warn('クラウドの削除に失敗', e); cloudOk = false; }
       }
+      if (db && !cloudOk) { showToast('⚠️ クラウドの削除が完了しなかったため、リセットを中止しました。通信状態を確認してもう一度お試しください', 'error', 7000); return; }
       const keep = {};
       ['geminiApiKey', 'geminiModel', 'jukenDeviceId', 'jukenLastBackupAt'].forEach(k => { const v = localStorage.getItem(k); if (v != null) keep[k] = v; });
       localStorage.clear();
@@ -180,6 +190,9 @@ window.emptyTrash = () => {
 
 // バックアップに含まれていてよい状態キー（01-state.js の defaultS 由来）
 const BACKUP_KNOWN_KEYS = ['tasks', 'unis', 'mocks', 'events', 'dailyLogs', 'studyTime', 'scoreTargets', 'timerLogs', 'timetable', 'homework', 'mockSchedule', 'specials', 'extras', 'repeatEvents', 'chatHistory', 'chatThreads', 'notes', 'heatmapData', 'applications', 'pastExams', 'trash', 'userName', 'userGrade', 'nijiDate', 'aiModel'];
+// 本物のスナップショット（Backup.snapshot() = S 全体）には、これらが必ずすべて含まれる。
+// 1つでも欠けているファイルは一部だけのデータか別物なので復元しない（復元すると残りがすべて初期化される）。
+const BACKUP_REQUIRED_KEYS = BACKUP_KNOWN_KEYS;
 
 // ダウンロードしたバックアップファイル（またはデータ本体そのもの）を検査し、
 // {version, createdAt, date, data} の形にそろえて返す。おかしければ日本語のエラーを投げる。
@@ -188,12 +201,16 @@ const validateBackupSnapshot = (obj) => {
   const hasData = obj.data !== undefined && obj.data !== null && typeof obj.data === 'object' && !Array.isArray(obj.data);
   const data = hasData ? obj.data : obj;   // data ラッパーが無い「データ本体だけ」の形も受け付ける
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('バックアップにデータが含まれていません');
-  if (!BACKUP_KNOWN_KEYS.some(k => Object.prototype.hasOwnProperty.call(data, k))) throw new Error('受験アプリのバックアップデータが見つかりませんでした');
+  const missing = BACKUP_REQUIRED_KEYS.filter(k => !Object.prototype.hasOwnProperty.call(data, k));
+  if (missing.length === BACKUP_REQUIRED_KEYS.length) throw new Error('受験アプリのバックアップデータが見つかりませんでした');
+  // 一部の項目だけのファイルは弾く（足りない項目が初期値で上書きされてしまうため）
+  if (missing.length > 0) throw new Error('バックアップが不完全なため復元できません（不足: ' + missing.join(', ') + '）。一部のデータだけのファイルでは、残りのデータが初期化されてしまいます');
   const createdAt = (hasData && typeof obj.createdAt === 'number' && obj.createdAt > 0) ? obj.createdAt : Date.now();
   return {
     version: hasData && obj.version ? obj.version : '',
     createdAt,
-    date: (hasData && obj.date) || new Date(createdAt).toISOString().slice(0, 10),
+    // 日本時間の日付にする。JSTには夏時間が無いので、+9時間してからUTCで切り出せばJSTの暦日になる
+    date: (hasData && obj.date) || new Date(createdAt + 9 * 3600 * 1000).toISOString().slice(0, 10),
     data
   };
 };
@@ -240,10 +257,19 @@ const restoreFromSnapshot = async (snap) => {
   }
   // 日別ログ：バックアップにある日は書き戻し、無い日は消す（setDailyLog は無い日を削除として扱う）
   new Set([...Object.keys(S.dailyLogs), ...beforeLogKeys]).forEach(d => jobs.push(DbService.setDailyLog(d)));
-  if (navigator.onLine) await Promise.race([Promise.allSettled(jobs), new Promise(r => setTimeout(r, 20000))]);
+  // 書き込み結果を確かめる。失敗・時間切れを「復元しました」と表示すると、
+  // 一部だけ戻った状態に気づけず、次の同期で復元前のデータと混ざる
+  // （オフライン時は SDK が書き込みを溜めて後で送るので、従来どおり待たずに完了扱い）
+  let failed = 0, timedOut = false;
+  if (navigator.onLine) {
+    const results = await Promise.race([Promise.allSettled(jobs), new Promise(r => setTimeout(() => r(null), 20000))]);
+    if (!results) timedOut = true;
+    else failed = results.filter(r => r.status === 'rejected' || r.value === false).length;
+  }
   try { rebuildStudyTotals({ persist: false }); } catch (e) {}
   refreshAllViews(); initAllCharts();
-  showToast('⏪ 復元しました');
+  if (failed > 0 || timedOut) showToast(`⚠️ 復元の一部が完了しませんでした（${timedOut ? '書き込みが時間内に終わりませんでした' : failed + '件の書き込みに失敗しました'}）。通信状態を確認して、もう一度復元をお試しください`, 'error', 7000);
+  else showToast('⏪ 復元しました');
 };
 window.restoreFromSnapshot = restoreFromSnapshot;
 
@@ -293,9 +319,11 @@ window.renderCloudBackups = async () => {
         : '<div style="font-size:12px;color:var(--muted)">まだクラウドバックアップがありません</div>');
 };
 window.runBackupNow = async () => {
-  await Backup.run(true);
+  // 失敗（クラウド保存の失敗を含む）を成功と表示しない
+  const ok = await Backup.run(true);
   await window.renderBackups();
-  showToast('💾 バックアップを作成しました');
+  if (ok) showToast('💾 バックアップを作成しました');
+  else showToast('⚠️ バックアップに失敗しました（クラウド保存できていない場合があります）', 'error', 5000);
 };
 window.downloadBackup = async (i) => {
   const list = await Backup.list();
@@ -648,12 +676,14 @@ SelfTest.add('同期: サーバーへ送る形に整える', () => {
 });
 
 SelfTest.add('バックアップ検証: 正しいスナップショットを通す', () => {
-  const snap = validateBackupSnapshot({ version: '2027.10.24-4', createdAt: 1760000000000, date: '2026-10-24', data: { tasks: [{ id: 't1' }], dailyLogs: {} } });
+  // 本物のスナップショットと同じく、すべての項目がそろった形で検査する
+  const full = (extra = {}) => ({ tasks: [{ id: 't1' }], unis: [], mocks: [], events: [], dailyLogs: {}, studyTime: {}, scoreTargets: {}, timerLogs: [], timetable: {}, homework: [], mockSchedule: [], specials: [], extras: [], repeatEvents: [], chatHistory: [], chatThreads: [], notes: [], heatmapData: {}, applications: [], pastExams: [], trash: [], userName: '', userGrade: '', nijiDate: '', aiModel: '', ...extra });
+  const snap = validateBackupSnapshot({ version: '2027.10.24-4', createdAt: 1760000000000, date: '2026-10-24', data: full() });
   assertEq(snap.version, '2027.10.24-4');
   assertEq(snap.createdAt, 1760000000000);
   assertEq(snap.date, '2026-10-24');
   assertEq(snap.data.tasks.length, 1);
-  const bare = validateBackupSnapshot({ tasks: [], unis: [] });
+  const bare = validateBackupSnapshot(full({ tasks: [], unis: [] }));
   assert(Array.isArray(bare.data.tasks), 'データ本体だけの形も受け付けること');
 });
 
@@ -664,6 +694,54 @@ SelfTest.add('バックアップ検証: おかしなデータは弾く', () => {
     try { validateBackupSnapshot(b); } catch (e) { threw = true; assert(e.message && e.message.length > 0, '日本語のエラーメッセージがあること'); }
     assert(threw, `弾くべきデータを素通ししました: ${JSON.stringify(b)}`);
   }
+});
+
+SelfTest.add('バックアップ検証: 一部の項目だけのスナップショットは弾く', () => {
+  for (const b of [{ version: 'x', data: { tasks: [] } }, { tasks: [] }]) {
+    let threw = false;
+    try { validateBackupSnapshot(b); } catch (e) { threw = true; }
+    assert(threw, `一部だけのデータを素通ししました: ${JSON.stringify(b)}`);
+  }
+});
+
+SelfTest.add('日付ユーティリティ: 壊れた日付は「今日」にならず無効になる', () => {
+  assert(isNaN(DateManager.parseSafe('2027-02-30')), '存在しない日付は無効になること');
+  assert(isNaN(DateManager.parseSafe('garbage')), '日付でない文字列は無効になること');
+  assert(isNaN(DateManager.parseSafe('')), '空文字は無効になること');
+  assert(!isNaN(DateManager.parseSafe('2027-02-28')), '正しい日付は読めること');
+});
+
+SelfTest.add('バックアップ容量: 文字数でなくバイト数で判定する', () => {
+  assert(Backup._tooBigForCloud('あ'.repeat(300000)) === true, '30万文字でも日本語なら90万バイトで上限超え');
+  assert(Backup._tooBigForCloud('a'.repeat(700000)) === false, '70万バイトは上限内');
+  assert(Backup._tooBigForCloud('a'.repeat(900000)) === true, '90万バイトは上限超え');
+});
+
+SelfTest.add('同期: 保留キューは覗くだけでは消えず、成功後にだけ消える', () => {
+  const id = 'selftest-x', dKey = '2000-01-01';
+  const hasDel = () => Pending.peekDels().some(d => d.col === 'tasks' && d.id === id);
+  const hasLog = () => Pending.peekLogs().includes(dKey);
+  try {
+    Pending.addDel('tasks', id);
+    assert(hasDel(), '削除の控えが積まれること');
+    assert(hasDel(), '覗いただけでは削除の控えが消えないこと');
+    Pending.removeDel('tasks', id);
+    assert(!hasDel(), '成功後に削除の控えが消えること');
+    Pending.addLog(dKey);
+    assert(hasLog(), '日別ログの控えが積まれること');
+    assert(hasLog(), '覗いただけでは日別ログの控えが消えないこと');
+    Pending.removeLog(dKey);
+    assert(!hasLog(), '成功後に日別ログの控えが消えること');
+  } finally {
+    // 失敗しても試験用の控えを残さない
+    Pending.removeDel('tasks', id); Pending.removeLog(dKey);
+  }
+});
+
+SelfTest.add('バス: 出発した直後のバスは次便に残らない', () => {
+  const sched = ['10:00', '10:30', '11:00'];
+  assertEq(window.nextBusDeps(sched, new Date(2026, 9, 26, 10, 0, 30)), ['10:30', '11:00'], '10:00:30 には10:00の便を出さないこと');
+  assertEq(window.nextBusDeps(sched, new Date(2026, 9, 26, 10, 0, 0))[0], '10:00', 'ちょうど10:00:00 なら10:00の便を出すこと');
 });
 
 SelfTest.add('エスケープ: HTMLタグを無害化', () => {

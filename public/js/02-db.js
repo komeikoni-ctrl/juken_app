@@ -64,10 +64,17 @@ const profileForServer = () => {
 const Pending = {
   _get: (k) => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch (e) { return []; } },
   _set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
-  addDel: (col, id) => { const a = Pending._get('jukenPendingDel'); a.push({ col, id: String(id) }); Pending._set('jukenPendingDel', a.slice(-500)); },
+  // 同じ削除を何度も積まない（送信失敗のたびに積み直すため）
+  addDel: (col, id) => { const a = Pending._get('jukenPendingDel'); if (a.some(d => d.col === col && String(d.id) === String(id))) return; a.push({ col, id: String(id) }); Pending._set('jukenPendingDel', a.slice(-500)); },
   takeDels: () => { const a = Pending._get('jukenPendingDel'); localStorage.removeItem('jukenPendingDel'); return a; },
   addLog: (dKey) => { const a = Pending._get('jukenPendingLogs'); if (!a.includes(dKey)) a.push(dKey); Pending._set('jukenPendingLogs', a); },
   takeLogs: () => { const a = Pending._get('jukenPendingLogs'); localStorage.removeItem('jukenPendingLogs'); return a; },
+  // 覗くだけ（消さない）。送信に成功したものだけ removeDel / removeLog で消す。
+  // 取り出してから送ると、送信中に失敗・終了したとき控えが失われるため。
+  peekDels: () => Pending._get('jukenPendingDel'),
+  peekLogs: () => Pending._get('jukenPendingLogs'),
+  removeDel: (col, id) => Pending._set('jukenPendingDel', Pending._get('jukenPendingDel').filter(d => !(d.col === col && String(d.id) === String(id)))),
+  removeLog: (dKey) => Pending._set('jukenPendingLogs', Pending._get('jukenPendingLogs').filter(k => k !== dKey)),
   markProfile: () => { try { localStorage.setItem('jukenPendingProfile', '1'); } catch (e) {} },
   takeProfile: () => { const v = localStorage.getItem('jukenPendingProfile') === '1'; localStorage.removeItem('jukenPendingProfile'); return v; }
 };
@@ -141,9 +148,10 @@ const DbService = {
     }
     return out;
   },
+  // 成功（または控えに積んで後で送る）なら true、送信失敗なら false を返す
   setMainProfile: async () => {
     lsSave();
-    if (!db) { Pending.markProfile(); return; }
+    if (!db) { Pending.markProfile(); return true; }
     // クラウドの内容をまだ一度も受け取っていないうちは書き込まない。
     // 新しい端末では S が初期値のままなので、ここで書くとクラウドの設定（名前・目標点・時間割など）を
     // 初期値で上書きしてしまう。最初の受信が済んだ直後にまとめて送る（initRealtimeSync 参照）。
@@ -151,7 +159,7 @@ const DbService = {
       _profileWriteQueued = true;
       // 圏外のまま使い続けた場合は、次に繋がったときこの端末の変更を優先して送る
       if (!navigator.onLine) Pending.markProfile();
-      return;
+      return true;
     }
     const p = profileForServer();
     lastLocalWriteAt = lastProfileWriteAt = Date.now();
@@ -159,34 +167,44 @@ const DbService = {
     p._writer = DEVICE_ID;
     p._writtenAt = lastLocalWriteAt;
     SyncStatus.set('syncing');
-    try { await db.collection('appData').doc(DOC_ID).set(p, {merge:true}); SyncStatus.set('synced'); }
-    catch(e){ SyncStatus.set(navigator.onLine ? 'error' : 'offline', e.message); }
+    try { await db.collection('appData').doc(DOC_ID).set(p, {merge:true}); SyncStatus.set('synced'); return true; }
+    catch(e){ SyncStatus.set(navigator.onLine ? 'error' : 'offline', e.message); return false; }
   },
   set: async (col, item) => {
     if (!item.id) item.id = generateId();
     // 未接続のあいだの変更には印を付けておき、次に繋がったときに送る（reconcileLocal 参照）
-    if (!db) { item._dirty = true; lsSave(); return; }
+    if (!db) { item._dirty = true; lsSave(); return true; }
     lastLocalWriteAt = Date.now();
     item._writer = DEVICE_ID; item._writtenAt = lastLocalWriteAt;
     delete item._dirty;
     lsSave();
     SyncStatus.set('syncing');
-    try { await db.collection('appData').doc(DOC_ID).collection(col).doc(item.id.toString()).set(DbService._forServer(col, item)); SyncStatus.set('synced'); }
-    catch(e){ SyncStatus.set(navigator.onLine ? 'error' : 'offline', e.message); }
+    try { await db.collection('appData').doc(DOC_ID).collection(col).doc(item.id.toString()).set(DbService._forServer(col, item)); SyncStatus.set('synced'); return true; }
+    catch(e){
+      // 送れなかった項目には未送信の印を付け直し、次の同期で送り直す（reconcileLocal 参照）
+      item._dirty = true; lsSave();
+      SyncStatus.set(navigator.onLine ? 'error' : 'offline', e.message);
+      return false;
+    }
   },
   del: async (col, id) => {
     lsSave();
-    if (id == null) return;
-    if (!db) { Pending.addDel(col, id); return; }
+    if (id == null) return true;
+    if (!db) { Pending.addDel(col, id); return true; }
     lastLocalWriteAt = Date.now();
     SyncStatus.set('syncing');
-    try { await db.collection('appData').doc(DOC_ID).collection(col).doc(id.toString()).delete(); SyncStatus.set('synced'); }
-    catch(e){ SyncStatus.set(navigator.onLine ? 'error' : 'offline', e.message); }
+    try { await db.collection('appData').doc(DOC_ID).collection(col).doc(id.toString()).delete(); SyncStatus.set('synced'); return true; }
+    catch(e){
+      SyncStatus.set(navigator.onLine ? 'error' : 'offline', e.message);
+      // 削除に失敗したら控えに積み、flushPendingWrites で送り直す（放置すると次の同期で復活する）
+      Pending.addDel(col, id);
+      return false;
+    }
   },
   setDailyLog: async (dKey) => {
     lsSave();
-    if (!dKey) return;
-    if (!db) { Pending.addLog(dKey); return; }
+    if (!dKey) return true;
+    if (!db) { Pending.addLog(dKey); return true; }
     try {
       const ref = db.collection('appData').doc(DOC_ID).collection('dailyLogs').doc(dKey);
       // ローカルで消した日（または中身が空になった日）はサーバーからも消す。
@@ -194,7 +212,13 @@ const DbService = {
       const lg = S.dailyLogs[dKey];
       if (!lg || (!(lg.total > 0) && !Object.keys(lg.subjects || {}).length)) await ref.delete();
       else await ref.set(lg);
-    } catch(e){ console.warn('日別ログの同期に失敗', dKey, e.message); }
+      return true;
+    } catch(e){
+      console.warn('日別ログの同期に失敗', dKey, e.message);
+      // 控えに積み直し、次の flushPendingWrites で送り直す
+      Pending.addLog(dKey);
+      return false;
+    }
   },
   // プロフィール内のマップ項目を「丸ごと差し替える」。
   // setMainProfile は set(..., {merge:true}) なので、ローカルでキーを消しても
@@ -202,14 +226,15 @@ const DbService = {
   // update() にオブジェクトを渡すとそのフィールドごと置き換わるので、削除が反映される。
   replaceField: async (field, value) => {
     lsSave();
-    if (!db) { Pending.markProfile(); return; }
-    if (!_profileReady) { _profileWriteQueued = true; _queuedReplaceFields.add(field); return; }
+    if (!db) { Pending.markProfile(); return true; }
+    if (!_profileReady) { _profileWriteQueued = true; _queuedReplaceFields.add(field); return true; }
     lastLocalWriteAt = lastProfileWriteAt = Date.now();
-    try { await db.collection('appData').doc(DOC_ID).update({ [field]: value, _writer: DEVICE_ID, _writtenAt: lastLocalWriteAt }); }
+    try { await db.collection('appData').doc(DOC_ID).update({ [field]: value, _writer: DEVICE_ID, _writtenAt: lastLocalWriteAt }); return true; }
     catch(e){
       console.warn('replaceField失敗', field, e.message);
       // まだ本体ドキュメントが無い（初回）場合は update が失敗するので、通常の保存に切り替える
-      if (e.code === 'not-found') await DbService.setMainProfile();
+      if (e.code === 'not-found') return await DbService.setMainProfile();
+      return false;
     }
   },
   migrateLocalData: async () => {
@@ -258,12 +283,13 @@ const flushPendingRefresh = () => {
   if (typeof refreshAllViews === 'function') doRefresh();
 };
 
-// 未接続のあいだに行った変更を、サーバーの内容を受け取る前に送っておく
+// 未接続のあいだに行った変更を、サーバーの内容を受け取る前に送っておく。
+// 控えは覗くだけで取り出し、送信に成功したものだけを控えから消す（途中で失敗しても控えが残る）。
 const flushPendingWrites = async () => {
   if (!db) return;
   try {
-    for (const d of Pending.takeDels()) await DbService.del(d.col, d.id);
-    for (const dKey of Pending.takeLogs()) await DbService.setDailyLog(dKey);
+    for (const d of Pending.peekDels()) { if (await DbService.del(d.col, d.id)) Pending.removeDel(d.col, d.id); }
+    for (const dKey of Pending.peekLogs()) { if (await DbService.setDailyLog(dKey)) Pending.removeLog(dKey); }
     // プロフィール（設定・時間割など）の未送信分は、最初の受信のときに扱う（initRealtimeSync 参照）
   } catch (e) { console.warn('未送信データの送信に失敗', e); }
 };
@@ -560,25 +586,36 @@ const Backup = {
       await Blobs.set('backups', list.slice(0, 4));   // 直近4世代だけ残す
       localStorage.setItem('jukenLastBackupAt', String(Date.now()));
       console.log('💾 自動バックアップを作成しました');
-      await Backup.saveCloud(snap);   // 端末内とは別にクラウドにも残す（失敗しても無視する）
+      // 端末内とは別にクラウドにも残す。失敗したことは呼び出し側に伝える（黙って成功扱いにしない）
+      const cloud = await Backup.saveCloud(snap);
+      if (cloud === false) { console.warn('💾 端末内バックアップは作成しましたが、クラウド保存に失敗しました'); return false; }
       return true;
     } catch (e) { console.warn('バックアップ失敗', e); return false; }
   },
+  // JSON の UTF-8 バイト数。日本語は1文字3バイトになるので文字数とは一致しない
+  _cloudJsonBytes: (json) => new TextEncoder().encode(json).length,
+  // Firestore の1ドキュメント上限（1MiB）を超えそうか
+  _tooBigForCloud: (json) => Backup._cloudJsonBytes(json) > 800000,
   // クラウド（Firestore）にも同じスナップショットを残す。URL移行時の引き継ぎ用。
   // DOC_ID を使うので、サンドボックス時はサンドボックス側にだけ書かれる。
+  // 戻り値: null = 試みなかった / true = 保存した / false = 失敗・容量超過でスキップ
   saveCloud: async (snap) => {
+    if (!db || !snap) return null;
+    // クラウドの内容をまだ受け取っていない端末では書かない（setMainProfile と同じガード）。
+    // 新しい端末の初回起動で、ほぼ空のスナップショットがクラウドのバックアップを押し出すのを防ぐ。
+    if (!_profileReady) { console.warn('☁️ クラウド未受信のためバックアップのクラウド保存をスキップしました'); return null; }
     try {
-      if (!db || !snap) return;
       const json = JSON.stringify(snap.data);
-      // Firestore の1ドキュメント上限（1MiB）を超えそうなら保存しない
-      if (json.length > 800000) { console.warn('☁️ バックアップが大きいためクラウド保存をスキップしました', json.length); return; }
+      // Firestore の上限はバイト数。文字数で判定すると日本語データで上限超過を見逃す。
+      if (Backup._tooBigForCloud(json)) { console.warn('☁️ バックアップが大きいためクラウド保存をスキップしました', Backup._cloudJsonBytes(json)); return false; }
       const col = db.collection('appData').doc(DOC_ID).collection('backups');
       await col.doc(String(snap.createdAt)).set({ version: snap.version, createdAt: snap.createdAt, date: snap.date, json });
       // 最新4件だけ残して古いものを消す
       const qs = await col.orderBy('createdAt', 'desc').get();
       const docs = qs.docs || [];
       await Promise.all(docs.slice(4).map(d => d.ref.delete()));
-    } catch (e) { console.warn('☁️ クラウドバックアップ失敗', e); }
+      return true;
+    } catch (e) { console.warn('☁️ クラウドバックアップ失敗', e); return false; }
   },
   // クラウドのバックアップ一覧（新しい順）。取れなければ空配列。
   listCloud: async () => {

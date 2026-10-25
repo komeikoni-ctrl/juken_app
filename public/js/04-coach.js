@@ -75,9 +75,10 @@ const buildContextParts = (scale = 1) => {
   const todayStr = DateManager.getTodayStr();
   const todayTimerLogs = S.timerLogs.filter(l => l.date === todayStr).map(l=>`[${l.time}] ${l.subj}:${l.min}分`).join(', ') || 'なし';
   const sabotage = `サボり検知累計:${S.sabotageCount}回`;
-  const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 60);
-  const thirtyDaysAgoStr = DateManager.getTodayStr(thirtyDaysAgo);
-  const recentEvents = S.events.filter(e => e.date >= thirtyDaysAgoStr).sort((a, b) => String(a.date).localeCompare(String(b.date)))
+  // 実際は60日前なので名前もそれに合わせる
+  const sixtyDaysAgo = new Date(); sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+  const sixtyDaysAgoStr = DateManager.getTodayStr(sixtyDaysAgo);
+  const recentEvents = S.events.filter(e => e.date >= sixtyDaysAgoStr).sort((a, b) => String(a.date).localeCompare(String(b.date)))
     .map(e => `[${e.date}${e.time ? ' ' + e.time : ''}] ${e.title}(${e.type})`).join(', ') || 'なし';
   const recentEvals = (S.aiCoachLog.history || []).slice(0, 14 * scale).map(h => `[${h.date}] ランク${h.rank}: ${h.comment}`).join(' | ') || 'なし';
   const currentSim = calcSimScores();

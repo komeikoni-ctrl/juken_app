@@ -328,26 +328,40 @@ window.busDayType = (d = new Date()) => {
   return window.BUS_HOLIDAYS.includes(key) ? 'weekend' : 'weekday';
 };
 
+// 次のバス（出発時刻ベース）。秒まで見るので、出発した直後のバスが「次のバス」に残らない。
+window.nextBusDeps = (schedule, now = new Date()) => {
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  return (schedule || []).filter(timeStr => {
+    const [h, m] = String(timeStr).split(':').map(Number);
+    return (h * 3600 + m * 60) >= nowSec;
+  });
+};
+
 window.updateBusTimes = () => {
   const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-  // schedule: バス時刻表, duration: 到着までの正確な所要時間(分)
-  const getNext3 = (schedule, duration) => {
-    const upcoming = schedule.filter(timeStr => {
-      const [h, m] = timeStr.split(':').map(Number);
-      return (h * 60 + m) >= currentMinutes;
-    });
-    
+  // 出発時刻＋所要時間 → 到着時刻（日付をまたぐかも返す）
+  const arrOf = (dep, duration) => {
+    const [h, m] = dep.split(':').map(Number);
+    const total = h * 60 + m + duration;
+    const arrH = Math.floor(total / 60) % 24;
+    const arrM = total % 60;
+    return { total, arrStr: `${String(arrH).padStart(2,'0')}:${String(arrM).padStart(2,'0')}` };
+  };
+  const arrStrOf = (dep, duration) => arrOf(dep, duration).arrStr;
+
+  // schedule: 今日の時刻表, tomorrowSchedule: 明日の時刻表, duration: 到着までの正確な所要時間(分)
+  const getNext3 = (schedule, tomorrowSchedule, duration) => {
+    const upcoming = window.nextBusDeps(schedule, now);
+
+    // 今日の便が終わったら、明日の始発を案内する（明日が土日祝ならそのダイヤで）
+    if (upcoming.length === 0 && tomorrowSchedule?.length) return `<span style='font-size:13px;font-weight:normal;color:var(--muted)'>本日の運行は終了しました</span><br><span style="font-size:13px">明日 <span style="font-weight:900">${tomorrowSchedule[0]}</span><span style="font-size:10px;font-weight:normal;color:var(--muted)">→${arrStrOf(tomorrowSchedule[0], duration)}着</span></span>`;
     if (upcoming.length === 0) return "<span style='font-size:13px;font-weight:normal;color:var(--muted)'>本日の運行は終了しました</span>";
-    
+
     return upcoming.slice(0, 3).map(dep => {
-      const [h, m] = dep.split(':').map(Number);
-      let total = h * 60 + m + duration;
-      const arrH = Math.floor(total / 60) % 24;
-      const arrM = total % 60;
-      const arrStr = `${String(arrH).padStart(2,'0')}:${String(arrM).padStart(2,'0')}`;
-      return `<span style="font-weight:900">${dep}</span><span style="font-size:10px;font-weight:normal;color:var(--muted)">→${arrStr}着</span>`;
+      const { total, arrStr } = arrOf(dep, duration);
+      // 到着が0時を過ぎる便は（翌日）と明示する
+      return `<span style="font-weight:900">${dep}</span><span style="font-size:10px;font-weight:normal;color:var(--muted)">→${arrStr}着${total >= 1440 ? '（翌日）' : ''}</span>`;
     }).join(' <span style="color:var(--border);font-weight:normal;margin:0 4px">|</span> ');
   };
 
@@ -358,8 +372,13 @@ window.updateBusTimes = () => {
   const weekend = window.busDayType(now) === 'weekend';
   const san = (weekend && tt.toSanWeekend?.length) ? tt.toSanWeekend : tt.toSan;
   const flo = (weekend && tt.toFloWeekend?.length) ? tt.toFloWeekend : tt.toFlo;
-  if(elSan) elSan.innerHTML = getNext3(san, tt.duration);
-  if(elFlo) elFlo.innerHTML = getNext3(flo, tt.durationReturn || tt.duration);
+  // 明日のダイヤ（終バス後の「明日の始発」表示用）
+  const tomorrow = new Date(now.getTime() + 86400000);
+  const weekendTomorrow = window.busDayType(tomorrow) === 'weekend';
+  const sanTomorrow = (weekendTomorrow && tt.toSanWeekend?.length) ? tt.toSanWeekend : tt.toSan;
+  const floTomorrow = (weekendTomorrow && tt.toFloWeekend?.length) ? tt.toFloWeekend : tt.toFlo;
+  if(elSan) elSan.innerHTML = getNext3(san, sanTomorrow, tt.duration);
+  if(elFlo) elFlo.innerHTML = getNext3(flo, floTomorrow, tt.durationReturn || tt.duration);
 };
 
 // 🍎 Appleカレンダー（ICS形式）出力機能
