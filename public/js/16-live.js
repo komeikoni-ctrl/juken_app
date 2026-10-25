@@ -359,7 +359,7 @@ const LiveFeed = {
   renderStatus: () => {
     const el = document.getElementById('live-status-c');
     if (!el) return;
-    const label = { ok: '✅ 正常', error: '⚠️ 取得失敗', stale: '⏸ 配信停止の可能性' };
+    const label = { ok: '✅ 正常', error: '⚠️ 取得失敗', stale: '⏸ 配信停止の可能性', unavailable: '— 取得不可（提供元が自動取得を制限）' };
     el.innerHTML = `<div style="font-size:12px;font-weight:700;margin:8px 0 4px">📡 ライブ情報</div>` + Object.keys(LIVE_FEED_NAMES).map(k => {
       const s = LiveFeed.status[k];
       const st = s ? (label[s.state] || s.state) : '— 未取得';
@@ -425,7 +425,9 @@ const LiveFeed = {
     if (!bundle) return;
     for (const key of Object.keys(bundle)) {
       LiveFeed.data[key] = bundle[key];
-      LiveFeed.setStatus(key, { state: 'ok', fetchedAt: Date.now(), sourceAt: bundle[key].updatedAt || null });
+      const fs = bundle[key] && bundle[key].status;
+      const state = fs === 'unavailable' ? 'unavailable' : (fs === 'error' ? 'error' : 'ok');
+      LiveFeed.setStatus(key, { state, fetchedAt: Date.now(), sourceAt: bundle[key].updatedAt || null });
     }
     try { LiveFeed.renderExamNews(); } catch (e) { console.warn('[live]', e); }
     try { LiveFeed.renderPricing(); } catch (e) { console.warn('[live]', e); }
