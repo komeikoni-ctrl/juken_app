@@ -128,6 +128,38 @@ const MoneyFeed = {
     });
     const cats = Object.entries(by).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount);
     return { out, inn, cats };
+  },
+  // 支出の前月比: 月別サマリから選択月の前暦月の合計を取り、差額と増減率を返す。
+  // 前月のサマリが無い月は null（表示しない）
+  prevMonthCompare: (data, ym) => {
+    const list = Array.isArray(data?.summaries) ? data.summaries : [];
+    const m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
+    if (!m) return null;
+    const prevDate = new Date(Number(m[1]), Number(m[2]) - 2, 1);
+    const prevYm = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+    const prev = list.find(x => x.month === prevYm);
+    const cur = list.find(x => x.month === ym);
+    if (!prev || !cur) return null;
+    const prevTotal = MoneyFeed.sumValues(prev.expenses);
+    const curTotal = MoneyFeed.sumValues(cur.expenses);
+    const diff = curTotal - prevTotal;
+    const pct = prevTotal > 0 ? Math.round(diff / prevTotal * 100) : null;
+    return { prevYm, prevTotal, curTotal, diff, pct };
+  },
+  // 家計簿の検索（タイトル部分一致・大小文字区別なし）と出所フィルタ
+  kakeiboFilter: (list, query, src) => {
+    const q = String(query || '').trim().toLowerCase();
+    return (Array.isArray(list) ? list : []).filter(x => {
+      if (src && src !== 'all' && x?.src !== src) return false;
+      if (q && !String(x?.title || '').toLowerCase().includes(q)) return false;
+      return true;
+    });
+  },
+  // データに実在する出所の一覧（出現順）。フィルタの select に出す候補
+  kakeiboSources: (list) => {
+    const seen = [];
+    (Array.isArray(list) ? list : []).forEach(x => { if (x?.src && !seen.includes(x.src)) seen.push(x.src); });
+    return seen;
   }
 };
 
@@ -141,6 +173,7 @@ const rerenderMoneyRoot = () => {
   if (tabsEl) tabsEl.innerHTML = MoneyView.tabsHtml();
   root.innerHTML = MoneyView.html(entry.data);
   root.dataset.rendered = '1';
+  MoneyUi.syncBtn();
 };
 
 // サブタブの表示状態（メモリ上だけ。S・同期データ・localStorageには載せない）
@@ -184,6 +217,17 @@ const MoneyExp = {
 const MoneyKb = {
   ym: null,       // 選択中の月。null なら最新の月
   showAll: false, // 明細を全件出すか（初期は直近30件）
+  query: '',      // 検索文字列（タイトル部分一致）
+  src: 'all',     // 出所フィルタ（'all' か実在する出所名）
+  setQuery: (v) => {
+    MoneyKb.query = String(v || '');
+    rerenderMoneyRoot();
+    // 再描画で入力欄が作り直されるので、フォーカスとカーソル位置を戻す
+    const el = document.getElementById('kb-search');
+    if (el) { el.focus(); const n = el.value.length; try { el.setSelectionRange(n, n); } catch (e) {} }
+  },
+  setSrc: (v) => { MoneyKb.src = String(v || 'all'); rerenderMoneyRoot(); },
+  clearFilter: () => { MoneyKb.query = ''; MoneyKb.src = 'all'; rerenderMoneyRoot(); },
   _months: [],    // 直近の描画で使った月一覧（新しい順）。‹ › ボタンの移動先を決めるために持つ
   setYm: (ym) => { MoneyKb.ym = ym; MoneyKb.showAll = false; MoneyKb.rerender(); },
   // d=-1: 前の月（古い方） / d=+1: 次の月（新しい方）
@@ -198,10 +242,37 @@ const MoneyKb = {
   rerender: () => rerenderMoneyRoot()
 };
 
+// 金額の表示/非表示（端末ローカルのUI設定だけ。S・Firestore・同期には絶対に載せない）。
+// マスクは描画時に MoneyView.yen を通すことで一元化する（全セクションが yen 経由）。
+const MONEY_UI_KEY = 'jukenMoneyUi';
+const MoneyUi = {
+  masked: (() => { try { return JSON.parse(localStorage.getItem(MONEY_UI_KEY) || '{}')?.masked === true; } catch (e) { return false; } })(),
+  toggle: () => {
+    MoneyUi.masked = !MoneyUi.masked;
+    try { localStorage.setItem(MONEY_UI_KEY, JSON.stringify({ masked: MoneyUi.masked })); } catch (e) {}
+    MoneyUi.syncBtn();
+    rerenderMoneyRoot();
+  },
+  syncBtn: () => {
+    const b = document.getElementById('money-mask-btn');
+    if (!b) return;
+    b.textContent = MoneyUi.masked ? '🙈 金額オフ' : '👁 金額オン';
+    b.setAttribute('aria-pressed', MoneyUi.masked ? 'true' : 'false');
+    b.title = MoneyUi.masked ? '金額は隠れています。押すと表示します' : '金額を表示中です。押すと隠します';
+  }
+};
+
 const MoneyView = {
   yen: (n) => {
+    if (typeof MoneyUi !== 'undefined' && MoneyUi.masked) return '¥•••';
     const v = Number(n) || 0;
     return (v < 0 ? '-¥' : '¥') + Math.abs(v).toLocaleString('ja-JP');
+  },
+  // 符号つき金額（前月比用）。マスク時は符号も出さない
+  signedYen: (n) => {
+    if (typeof MoneyUi !== 'undefined' && MoneyUi.masked) return '¥•••';
+    const v = Number(n) || 0;
+    return (v > 0 ? '+' : v < 0 ? '-' : '') + '¥' + Math.abs(v).toLocaleString('ja-JP');
   },
   ymLabel: (ym) => {
     const m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
@@ -242,6 +313,7 @@ async function renderMoney(force) {
   root.dataset.rendered = '1';
   const tabsEl = document.getElementById('money-tabs');
   if (tabsEl) tabsEl.innerHTML = MoneyView.tabsHtml();
+  MoneyUi.syncBtn();
   if (upd) {
     const t = data.updatedAt ? new Date(data.updatedAt) : null;
     upd.textContent = t && !isNaN(t)
@@ -331,7 +403,7 @@ MoneyView.sections = (data) => {
   const expBar = ms ? MoneyView.monthBar(sumMonths, ms.month, 'MoneyExp') : '';
   out.expenses = ms
     ? `<div class="card"><div class="card-hdr"><span class="card-hdr-title">🧾 ${esc(MoneyView.ymLabel(ms.month))}の支出</span><span class="muted" style="font-size:11px">収入 ${MoneyView.yen(incTotal)}</span></div>
-      ${expBar}<div style="font-size:22px;font-weight:900;margin-bottom:6px">${MoneyView.yen(expTotal)}</div>` +
+      ${expBar}<div style="font-size:22px;font-weight:900;margin-bottom:6px">${MoneyView.yen(expTotal)}${(() => { const c = MoneyFeed.prevMonthCompare(data, ms.month); return c ? ` <span class="muted" style="font-size:12px;font-weight:600">前月比 ${MoneyView.signedYen(c.diff)}${c.pct != null ? `（${c.pct > 0 ? '+' : ''}${c.pct}%）` : ''}</span>` : ''; })()}</div>` +
       (exps.length ? exps.map(e => MoneyView.row(e.category_name, '', e.value_in_jpy, MoneyFeed.pct(e.value_in_jpy, expTotal), 'var(--a2)')).join('')
                     : '<div class="empty">この月の支出はまだありません</div>') +
       `<div class="muted" style="font-size:11px;margin-top:8px">銀行・証券の連携分（マネーフォワード ME のカテゴリ集計）。PayPay払いは下の PayPay 欄を見てください。</div></div>`
@@ -344,12 +416,24 @@ MoneyView.sections = (data) => {
   const list = MoneyFeed.kakeiboList(data, selYm);
   // 明細が要約に置き換わった月は、合計とカテゴリ別だけを表示する
   const kbSum = list.length ? null : MoneyFeed.kakeiboMonthSummary(data, selYm);
+  // 検索・出所フィルタ（明細のある月だけ）。件数・合計・カテゴリはフィルタ後に追従する
+  const filtering = list.length > 0 && (MoneyKb.query.trim() !== '' || (MoneyKb.src && MoneyKb.src !== 'all'));
+  const viewList = filtering ? MoneyFeed.kakeiboFilter(list, MoneyKb.query, MoneyKb.src) : list;
   const tot = kbSum
     ? { out: kbSum.out || 0, inn: kbSum.in || 0, cats: (kbSum.cats || []).slice().sort((a, b) => (b.amount || 0) - (a.amount || 0)) }
-    : MoneyFeed.kakeiboTotals(list);
-  const shown = MoneyKb.showAll ? list : list.slice(0, 30);
+    : MoneyFeed.kakeiboTotals(viewList);
+  const shown = MoneyKb.showAll ? viewList : viewList.slice(0, 30);
   const kbBar = MoneyView.monthBar(kbMonths, selYm, 'MoneyKb');
-  const kbCount = kbSum ? (kbSum.count || 0) : list.length;
+  const srcOpts = MoneyFeed.kakeiboSources(list);
+  if (MoneyKb.src !== 'all' && !srcOpts.includes(MoneyKb.src)) MoneyKb.src = 'all';
+  const kbControls = list.length
+    ? `<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+        <input id="kb-search" type="search" value="${esc(MoneyKb.query)}" placeholder="🔍 明細を検索（店名など）" oninput="MoneyKb.setQuery(this.value)" aria-label="家計簿を検索" style="flex:1;min-width:0;width:auto;margin:0;padding:7px 10px;font-size:13px">
+        <select onchange="MoneyKb.setSrc(this.value)" aria-label="出所で絞り込む" style="flex:none;width:auto;margin:0;padding:7px 8px;font-size:13px"><option value="all"${MoneyKb.src === 'all' ? ' selected' : ''}>出所: 全部</option>${srcOpts.map(sv => `<option value="${esc(sv)}"${MoneyKb.src === sv ? ' selected' : ''}>${esc(sv)}</option>`).join('')}</select>
+      </div>` +
+      (filtering ? `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="badge bb" style="font-size:11px">絞り込み中</span><button type="button" class="btn btn-sm btn-s" onclick="MoneyKb.clearFilter()" style="font-size:11px;padding:4px 10px">絞り込みを解除</button></div>` : '')
+    : '';
+  const kbCount = kbSum ? (kbSum.count || 0) : (filtering ? `${viewList.length}件（全${list.length}件中）` : list.length);
   const rowHtml = (x) => {
     const isIn = x.io === 'in';
     const d = String(x.date || '');
@@ -365,7 +449,7 @@ MoneyView.sections = (data) => {
   };
   out.kakeibo = kbMonths.length
     ? `<div class="card"><div class="card-hdr"><span class="card-hdr-title">📒 家計簿</span><span class="muted" style="font-size:11px">${kbCount}件</span></div>
-      ${kbBar}
+      ${kbBar}${kbControls}
       <div class="g2" style="margin-bottom:6px">
         <div class="stat"><div class="stat-v" style="font-size:19px">${MoneyView.yen(tot.out)}</div><div class="stat-l">支出</div></div>
         <div class="stat"><div class="stat-v" style="font-size:19px;color:var(--a3)">${MoneyView.yen(tot.inn)}</div><div class="stat-l">入金</div></div>
@@ -374,8 +458,8 @@ MoneyView.sections = (data) => {
       (kbSum
         ? `<div class="empty" style="margin-top:10px">この月は明細が多く、合計とカテゴリ別だけを表示しています。</div>`
         : `<div style="font-size:12px;font-weight:700;margin:12px 0 2px">明細（新しい順）</div>` +
-          (shown.length ? shown.map(rowHtml).join('') : '<div class="empty">この月の明細はまだありません</div>') +
-          (list.length > 30 ? `<button type="button" class="btn ghost" style="width:100%;margin-top:8px" onclick="MoneyKb.toggleAll()">${MoneyKb.showAll ? '直近30件だけ見る' : `ぜんぶ見る（${list.length}件）`}</button>` : '')) +
+          (shown.length ? shown.map(rowHtml).join('') : `<div class="empty">${filtering ? '条件に合う明細がありません。検索や出所フィルタを変えてみてください。' : 'この月の明細はまだありません'}</div>`) +
+          (viewList.length > 30 ? `<button type="button" class="btn ghost" style="width:100%;margin-top:8px" onclick="MoneyKb.toggleAll()">${MoneyKb.showAll ? '直近30件だけ見る' : `ぜんぶ見る（${viewList.length}件）`}</button>` : '')) +
       `<div class="muted" style="font-size:11px;margin-top:8px">銀行（楽天銀行・PayPay銀行）の明細と PayPay の支払い・送金を合わせたものです。PayPayへのチャージは、二重に数えないため明細に入れていません。</div></div>`
     : '';
 
