@@ -1359,6 +1359,31 @@ SelfTest.add('ノートのキーワードが配列でなくても壊れない', 
   assertEq(noteKeywords(null), []);
 });
 
+SelfTest.add('プッシュ通知: VAPID公開鍵と購読データの形', () => {
+  const keyBytes = _b64ToBytes(VAPID_PUBLIC_KEY);
+  assertEq(keyBytes.length, 65, 'VAPID公開鍵は65バイト（非圧縮の楕円曲線点）');
+  assertEq(keyBytes[0], 0x04, '先頭は非圧縮点の印 0x04');
+  // 購読の保存形式（ブラウザの PushSubscription と同じ形のモックで確認）
+  const fakeSub = { endpoint: 'https://push.example/abc', toJSON: () => ({ endpoint: 'https://push.example/abc', keys: { p256dh: 'PK', auth: 'AK' } }) };
+  assertEq(PushUI._subPayload(fakeSub), { endpoint: 'https://push.example/abc', keys: { p256dh: 'PK', auth: 'AK' } }, '購読→保存形式の変換');
+  assertEq(typeof PushUI.isSupported(), 'boolean', '対応判定が例外なく真偽値を返す');
+});
+
+SelfTest.add('入試情報ウォッチ: 未読の抽出とカード生成', () => {
+  const ups = [
+    { id: '1', uni: '同志社大学', url: 'https://www.doshisha.ac.jp/admission/', at: '2026-12-01T00:00:00Z', snippet: '出願要項を公開', read: false },
+    { id: '2', uni: '立命館大学', url: 'https://www.ritsumei.ac.jp/admission/', at: '2026-12-02T00:00:00Z', snippet: '', read: true },
+    { id: '3', uni: '<悪意>', url: 'https://www.kindai.ac.jp/admission/', at: '2026-12-03T00:00:00Z', snippet: 'x', read: false }
+  ];
+  assertEq(AdmWatchUI._unread(ups).map(u => u.id), ['1', '3'], '未読だけを順序そのままに');
+  assertEq(AdmWatchUI._unread(null), [], 'null でも空配列');
+  const html = AdmWatchUI._cardHtml(ups);
+  assert(html.includes('同志社大学') && html.includes('出願要項を公開'), '未読の大学名と差分が出る');
+  assert(!html.includes('立命館大学'), '既読は出さない');
+  assert(html.includes('&lt;悪意&gt;'), '大学名はエスケープされる');
+  assertEq(AdmWatchUI._cardHtml(ups.map(u => ({ ...u, read: true }))), '', '全部既読ならカードなし');
+});
+
 window.runSelfTest = () => {
   const el = document.getElementById('selftest-c');
   const results = SelfTest.run();
