@@ -18,6 +18,13 @@ const FS_BASE = 'https://firestore.googleapis.com/v1/projects/juken2027-63058/da
 const PUSH_SUBS_DOC = 'live/pushSubs';   // fields.subs = 購読情報の JSON 文字列
 const PUSH_STATE_DOC = 'live/pushState'; // fields.notifyLog = 送信済み記録の JSON 文字列
 const WATCH_DOC = 'live/admWatch';       // fields.state（サーバー用）/ fields.updates（アプリ表示用）
+const AI_USAGE_DOC = 'live/aiUsage';     // fields.usage = 日次・モデル別の利用量 JSON
+const ERROR_LOG_DOC = 'live/errorLog';   // fields.entries = サーバー受信エラーの JSON 配列
+const BACKUPS_INDEX_DOC = 'live/backups'; // fields.days = バックアップ日次の索引 JSON
+const HEALTH_DOC = 'live/health';        // fields.health = 健全性チェック結果 JSON
+const MONEY_DOC = 'live/money';          // fields.money = お金データ JSON（外部チェッカーが書き込み）
+const FEEDS_DOC = 'live/feeds';          // 16-live.js の中継ドキュメント
+const PROFILE_DOC = 'appData/perfect_sync_data_2027'; // プロフィール本体
 
 // ---------- base64url ----------
 const b64uEncode = (buf) => Buffer.from(buf).toString('base64url');
@@ -51,6 +58,34 @@ async function fsGetJson(path, field, fallback) {
     const v = JSON.parse(s);
     return v == null ? fallback : v;
   } catch (e) { return fallback; }
+}
+
+// オブジェクトを JSON 文字列フィールドとして書く
+async function fsSetJson(path, field, obj) {
+  return fsSetField(path, field, JSON.stringify(obj));
+}
+
+// ドキュメントを削除する（ローテーション用）。成否だけ返す
+async function fsDeleteDoc(path) {
+  try {
+    const res = await fetch(`${FS_BASE}/${path}`, { method: 'DELETE' });
+    return res.ok;
+  } catch (e) { return false; }
+}
+
+// サブコレクションの先頭数件だけ読む（健全性チェックの「最終更新の目安」用）。
+// 並び順は保証されないサンプルなので、updateTime の最大値を目安として使う。
+async function fsSampleCollection(path, pageSize) {
+  const res = await fetch(`${FS_BASE}/${path}?pageSize=${pageSize || 5}`, { cache: 'no-store' });
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('firestore list failed: ' + res.status);
+  const j = await res.json();
+  return Array.isArray(j.documents) ? j.documents : [];
+}
+
+// JST の今日を YYYY-MM-DD で返す
+function todayJst() {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
 // ---------- 購読情報 ----------
@@ -185,8 +220,10 @@ function sendJson(res, status, obj) {
 
 module.exports = {
   FS_BASE, PUSH_SUBS_DOC, PUSH_STATE_DOC, WATCH_DOC,
+  AI_USAGE_DOC, ERROR_LOG_DOC, BACKUPS_INDEX_DOC, HEALTH_DOC, MONEY_DOC, FEEDS_DOC, PROFILE_DOC,
   b64uEncode, b64uDecode,
-  fsGetDoc, fsSetField, fsGetJson,
+  fsGetDoc, fsSetField, fsGetJson, fsSetJson, fsDeleteDoc, fsSampleCollection,
+  todayJst,
   getSubscriptions, saveSubscriptions,
   cronAuthorized, sendPush, sendPushToAll, sendJson
 };
