@@ -75,23 +75,21 @@ const PushUI = {
 
   refreshSettings: async () => {
     const st = document.getElementById('push-status');
-    const btnOn = document.getElementById('push-enable-btn');
-    const btnOff = document.getElementById('push-disable-btn');
+    const toggle = document.getElementById('push-toggle');
     const btnTest = document.getElementById('push-test-btn');
     if (!st) return;
-    const setBtns = (on, off, test) => {
-      if (btnOn) btnOn.disabled = !on;
-      if (btnOff) btnOff.disabled = !off;
-      if (btnTest) btnTest.disabled = !test;
+    const setState = (on, canToggle, canTest) => {
+      if (toggle) { toggle.checked = !!on; toggle.disabled = !canToggle; }
+      if (btnTest) btnTest.disabled = !canTest;
     };
     if (PushUI.isPagesHost()) {
       st.textContent = 'GitHub Pages版ではプッシュ通知は使えません。Vercel版（juken-app-sigma.vercel.app）で有効化してください。';
-      setBtns(false, false, false);
+      setState(false, false, false);
       return;
     }
     if (!PushUI.isSupported()) {
       st.textContent = 'このブラウザ／表示方法では通知に対応していません。iPhoneでは「ホーム画面に追加」したアプリから開いてください。';
-      setBtns(false, false, false);
+      setState(false, false, false);
       return;
     }
     try {
@@ -99,17 +97,17 @@ const PushUI = {
       const sub = await reg.pushManager.getSubscription();
       if (Notification.permission === 'denied') {
         st.textContent = '通知がブロックされています。端末の「設定」アプリでこのアプリの通知を許可してください。';
-        setBtns(false, false, false);
+        setState(false, false, false);
       } else if (sub) {
-        st.textContent = '✅ 通知は有効です。出願の開始・締切（3日前・前日・当日）と入試情報の更新をお知らせします。';
-        setBtns(false, true, true);
+        st.textContent = '✅ 通知はオンです。出願の開始・締切（3日前・前日・当日）と入試情報の更新をお知らせします。オフにすると購読を解除し、送信対象からも外れます。';
+        setState(true, true, true);
       } else {
-        st.textContent = '通知はまだ有効化されていません。「通知を有効にする」を押してください。';
-        setBtns(true, false, false);
+        st.textContent = '通知はオフです。トグルをオンにすると購読を登録します。';
+        setState(false, true, false);
       }
     } catch (e) {
       st.textContent = '状態を確認できませんでした。';
-      setBtns(true, false, false);
+      setState(false, true, false);
     }
   },
 
@@ -166,6 +164,8 @@ const PushUI = {
 window.PushUI = PushUI;
 window.enablePush = () => PushUI.enable();
 window.disablePush = () => PushUI.disable();
+// 設定のトグル: オン→購読を登録、オフ→購読解除＋サーバー側の送信対象からも除外
+window.togglePush = (on) => { if (on) PushUI.enable(); else PushUI.disable(); };
 window.testPush = () => PushUI.test();
 
 // ============================================================
