@@ -768,7 +768,7 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
     <button class="btn btn-p btn-sm" onclick="showMo('mo-ev')">+ 予定追加</button>
   </div>
 </div>
-  <div class="expand-section"><div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📆 月カレンダー</div><span class="expand-arrow">▼</span></div><div class="expand-body open"><div class="flex-between" style="margin-bottom:12px"><button class="btn btn-s btn-sm" onclick="chMonth(-1)">‹ 前月</button><strong id="cal-title" style="font-size:15px"></strong><button class="btn btn-s btn-sm" onclick="chMonth(1)">翌月 ›</button></div><div class="cal-grid" id="cal-head"></div><div class="cal-grid" id="cal-body" style="margin-top:4px"></div></div></div>
+  <div class="expand-section"><div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📆 月カレンダー</div><span class="expand-arrow">▼</span></div><div class="expand-body open"><div class="flex-between" style="margin-bottom:12px"><button class="btn btn-s btn-sm" onclick="chMonth(-1)">‹ 前月</button><strong id="cal-title" style="font-size:15px"></strong><span style="display:flex;gap:6px"><button class="btn btn-s btn-sm" onclick="chCalToday()">今月</button><button class="btn btn-s btn-sm" onclick="chMonth(1)">翌月 ›</button></span></div><div class="cal-grid" id="cal-head"></div><div class="cal-grid" id="cal-body" style="margin-top:4px"></div></div></div>
   <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">📋 週表示</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div class="flex-between" style="margin-bottom:10px"><button class="btn btn-s btn-sm" onclick="chWeek(-1)">‹ 前週</button><strong id="week-title" style="font-size:14px"></strong><button class="btn btn-s btn-sm" onclick="chWeek(1)">翌週 ›</button></div><div class="week-scroll" id="week-wrap"></div></div></div>
   <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🔁 繰り返し予定一覧</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div id="repeat-ev-list"><div class="empty">繰り返し予定はありません</div></div></div></div>
 <div class="expand-section"><div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📝 予定一覧</div><span class="expand-arrow">▼</span></div><div class="expand-body open"><div id="ev-list"><div class="empty">予定がありません</div></div></div></div>
@@ -1115,9 +1115,9 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
       <div class="page-title">💰 お金</div>
       <div class="muted" id="money-updated" style="font-size:12px">マネーフォワード ME・2時間おき自動更新</div>
     </div>
-    <button class="btn btn-s btn-sm" onclick="renderMoney(true)">🔄 更新</button>
+    <div style="display:flex;gap:6px;flex:none"><button type="button" class="btn btn-s btn-sm" id="money-mask-btn" onclick="MoneyUi.toggle()" aria-pressed="false">👁 金額オン</button><button class="btn btn-s btn-sm" onclick="renderMoney(true)">🔄 更新</button></div>
   </div>
-  <div id="money-tabs"></div>
+  <div id="money-tabs" style="position:sticky;top:calc(var(--nav-h) + 20px);z-index:150;background:var(--bg);padding:8px 0 2px"></div>
   <div id="money-root"><div class="card"><div class="empty">お金のデータを読み込み中…</div></div></div>
 </div>
 
