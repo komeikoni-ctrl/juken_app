@@ -672,8 +672,14 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
 #money-tabs .seg-row::-webkit-scrollbar{display:none}
 #money-tabs .seg-row .btn{flex:0 0 auto;padding:7px 16px!important;font-size:13px!important;overflow:visible}
 @media(max-width:640px){#money-tabs .seg-row .btn{font-size:12px!important}}
-/* お金ページのヘッダーボタン行：各ボタンを行幅いっぱいに広げ、行内で等幅にそろえる（iPhone幅では2×2） */
-.money-hdr-btns .btn{flex:1 1 0}
+/* お金ページのヘッダーボタン行：改行判定をラベルのmin-content頼みにすると4つが1行に縮んで縦折れするため、
+   狭い画面はbasis:40%で確実に2×2、641px以上はボタン行を幅いっぱいの独立行にして4等分にする（nowrapでラベル途中の折り返しを防ぐ）。
+   コンテナのflex-basisはインラインstyle（flex:1 1 auto）に勝つため!importantが必要 */
+.money-hdr-btns .btn{flex:1 1 40%;white-space:nowrap}
+@media(min-width:641px){
+  .money-hdr-btns{flex-basis:100%!important}
+  .money-hdr-btns .btn{flex:1 1 0;min-width:0}
+}
 
 /* --- ホーム：ベントグリッド --- */
 #page-home.active{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
