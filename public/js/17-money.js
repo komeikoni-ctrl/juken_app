@@ -186,7 +186,8 @@ const MoneyTab = {
     { id: 'expenses', label: '支出' },
     { id: 'paypay', label: 'PayPay' },
     { id: 'kakeibo', label: '家計簿' },
-    { id: 'subs', label: 'サブスク' }
+    { id: 'subs', label: 'サブスク' },
+    { id: 'report', label: '月次レポート' }
   ],
   set: (id) => {
     if (!MoneyTab.TABS.some(t => t.id === id)) return;
@@ -621,6 +622,9 @@ MoneyView.sections = (data) => {
       `<div class="muted" style="font-size:11px;margin-top:8px">対象期間 ${esc(pp.periodFrom || '')} 〜 ${esc(pp.periodTo || '')}・全期間の支払い合計 ${MoneyView.yen(pp.totalPayments)}（${pp.paymentCount}件）。PayPayは自動連携が無いため、この欄は取引履歴CSVを取り込んだ時点のスナップショットです（自動更新されません）。</div></div>`
     : '';
 
+  // ⑦ 月次家計レポート（サーバー生成: 19-server.js の HouseholdReportUI が描く）
+  out.report = (typeof HouseholdReportUI !== 'undefined' && HouseholdReportUI.html) ? HouseholdReportUI.html() : '';
+
   return out;
 };
 
@@ -637,7 +641,8 @@ MoneyView.html = (data, tab) => {
     expenses: ['expenses'],
     paypay: ['paypay'],
     kakeibo: ['kakeibo'],
-    subs: ['subs']
+    subs: ['subs'],
+    report: ['report']
   }[cur] || ['total', 'accounts', 'securities', 'expenses', 'kakeibo', 'subs', 'paypay'];
   const body = order.map(k => s[k]).join('');
   return body || '<div class="card"><div class="empty">データがまだありません</div></div>';

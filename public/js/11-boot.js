@@ -1497,6 +1497,52 @@ SelfTest.add('エラー自動送信: 送信ペイロードの整形', () => {
   assertEq(Object.keys(body).sort(), ['message', 'page', 'source', 'type', 'version'], '送る項目はこの5つだけ（入力内容は含めない）');
 });
 
+SelfTest.add('朝ブリーフィング: 今日の分がある時だけ出る', () => {
+  assertEq(LiveDocsUI._briefingCardHtml(null, '2026-10-28'), '', '未取得なら出さない');
+  assertEq(LiveDocsUI._briefingCardHtml({ days: {} }, '2026-10-28'), '', '今日の分が無ければ出さない');
+  assertEq(LiveDocsUI._briefingCardHtml({ days: { '2026-10-27': { text: '昨日の分' } } }, '2026-10-28'), '', '昨日の分は出さない');
+  const html = LiveDocsUI._briefingCardHtml({ days: { '2026-10-28': { text: 'おはよう。今日は数学を中心に。' } } }, '2026-10-28');
+  assert(html.includes('おはよう。今日は数学を中心に。'), '今日の文面が出る');
+  assert(html.includes('今日のブリーフィング'), '見出しが出る');
+});
+
+SelfTest.add('サブスク価格アラート: 未読だけ出て、既読は消える', () => {
+  const data = { alerts: [{ id: 'a1', kind: 'subs-price', subName: 'Google AI Pro', registeredAmount: 2900, chargedAmount: 3200, diff: 300, date: '2026-11-21', read: false }] };
+  assertEq(LiveDocsUI._alertsCardHtml(null, new Set()), '', '未取得なら出さない');
+  assertEq(LiveDocsUI._alertsCardHtml({ alerts: [] }, new Set()), '', 'アラートが無ければ出さない');
+  const html = LiveDocsUI._alertsCardHtml(data, new Set());
+  assert(html.includes('Google AI Pro'), 'サブスク名が出る');
+  assert(html.includes('値上げの可能性'), '値上げの注記が出る');
+  assertEq(LiveDocsUI._alertsCardHtml(data, new Set(['a1'])), '', '端末で既読にしたものは出ない');
+  assertEq(LiveDocsUI._alertsCardHtml({ alerts: [{ ...data.alerts[0], read: true }] }, new Set()), '', 'サーバー側で既読のものは出ない');
+});
+
+SelfTest.add('週次レビューとチャット要約: データがある時だけ中身が出る', () => {
+  assert(LiveDocsUI._weeklyHtml(null).includes('自動生成されます'), '未取得なら案内文');
+  const w = LiveDocsUI._weeklyHtml({ latest: '2026-W44', entries: { '2026-W44': { text: '先週は英語が伸びた。', generatedAt: '2026-11-02T06:45:00+09:00' } } });
+  assert(w.includes('先週は英語が伸びた。'), '最新の週次レビューが出る');
+  assertEq(LiveDocsUI._chatSummaryHtml(null), '', '要約が無ければ出さない');
+  const c = LiveDocsUI._chatSummaryHtml({ summary: '数学の勉強法を相談していた。', updatedAt: '2026-11-02T06:45:00+09:00' });
+  assert(c.includes('数学の勉強法を相談していた。'), 'チャット要約が出る');
+  assert(c.includes('前回までの要約'), '見出しが出る');
+});
+
+SelfTest.add('月次家計レポート: 集計と月切替の材料が描ける', () => {
+  const data = { reports: {
+    '2026-09': { month: '2026-09', expenseTotal: 41767, incomeTotal: 40027, totalAssets: 28088, prevDiff: 1000, prevPct: 2, byCategory: [{ name: '現金・カード', amount: 25000 }, { name: '通信費', amount: 9252 }], top: [{ date: '2026-09-01', title: 'GOOGLE*CLOUD', amount: 5000 }], comment: '先月は通信費が中心でした。' },
+    '2026-08': { month: '2026-08', expenseTotal: 40767, incomeTotal: 0, totalAssets: 0, byCategory: [], top: [], comment: '' }
+  } };
+  assertEq(HouseholdReportUI._months(data), ['2026-09', '2026-08'], '月は新しい順');
+  const html = HouseholdReportUI._html(data, '2026-09');
+  assert(html.includes('月次家計レポート'), '見出しが出る');
+  assert(html.includes('現金・カード'), 'カテゴリが出る');
+  assert(html.includes('先月は通信費が中心でした'), 'AIコメントが出る');
+  const old = HouseholdReportUI._html(data, '2026-08');
+  assert(!old.includes('先月は通信費が中心でした'), '月の切替で別レポートになる');
+  assert(HouseholdReportUI._html(null, null).includes('まだありません'), '未取得なら空の案内');
+  assert(MoneyTab.TABS.some(t => t.id === 'report'), 'お金タブに月次レポートがある');
+});
+
 SelfTest.add('健全性カード: 異常があるときだけ出る', () => {
   assertEq(ServerDiagUI._healthCardHtml(null), '', '未取得なら出さない');
   assertEq(ServerDiagUI._healthCardHtml({ ok: true, issues: [] }), '', '正常なら出さない');

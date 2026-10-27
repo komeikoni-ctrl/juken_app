@@ -11,6 +11,14 @@
         {
             "path": "/api/cron-watch",
             "schedule": "5 23 * * *"
+        },
+        {
+            "path": "/api/cron-generate",
+            "schedule": "30 21 * * *"
+        },
+        {
+            "path": "/api/cron-household",
+            "schedule": "0 0 1 * *"
         }
     ],
     "headers": [

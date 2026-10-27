@@ -17,8 +17,31 @@ const lib = require('./_pushlib');
 const TARGETS = [
   { id: 'doshisha', name: '同志社大学', url: 'https://www.doshisha.ac.jp/admission/' },
   { id: 'ritsumei', name: '立命館大学', url: 'https://admission.ritsumei.ac.jp/' },
-  { id: 'kindai',   name: '近畿大学',   url: 'https://kindai.jp/' }
+  { id: 'kindai',   name: '近畿大学',   url: 'https://kindai.jp/' },
+  // 入試結果データのページ（2026-10-27 に実在とタイトルを確認済み）。
+  // 志願者速報そのものではないが、新しい結果データの掲載を検知できる。
+  { id: 'ritsumei-result', name: '立命館大学（入試結果データ）', url: 'https://admission.ritsumei.ac.jp/admission/general/result.html' },
+  { id: 'kindai-results',  name: '近畿大学（入試結果）',       url: 'https://kindai.jp/exam/results/' }
 ];
+// 志願者速報ページの出現チェック（項目24）: 2027年度入試の速報ページは
+// 2026-10-27 時点で3大学とも未出現（トップ・学部入試ページにリンクなし、
+// を実アクセスで確認）。推測URLは監視に入れず、代わりに各大学の入試
+// トップのリンクを毎日走査し、「出願状況／志願者速報」等へのリンクが
+// 新しく出現したら知らせる。出現状況は live/admWatch の sokuho に出す。
+const SOKUHO_TARGET_IDS = ['doshisha', 'ritsumei', 'kindai'];
+const SOKUHO_KEYWORDS = /(出願状況|志願者速報|志願状況|出願速報|志願者数)/;
+
+function scanSokuhoLinks(html, baseUrl) {
+  const out = [];
+  const re = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = re.exec(String(html || ''))) !== null) {
+    const text = m[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!SOKUHO_KEYWORDS.test(text)) continue;
+    try { out.push({ href: new URL(m[1], baseUrl).toString(), text: text.slice(0, 60) }); } catch (e) { /* 相対解決できないものは捨てる */ }
+  }
+  return out;
+}
 
 // HTML → 比較用の本文テキスト。
 // スクリプト・スタイル・コメント・タグを除き、実体参照を戻し、
@@ -72,14 +95,37 @@ module.exports = async (req, res) => {
 
     const state = await lib.fsGetJson(lib.WATCH_DOC, 'state', { unis: {} });
     if (!state.unis) state.unis = {};
+    if (!state.sokuho || typeof state.sokuho !== 'object') state.sokuho = {};
     const updates = await lib.fsGetJson(lib.WATCH_DOC, 'updates', []);
     const nowIso = new Date().toISOString();
     const results = [];
     let changedCount = 0;
+    const sokuhoStatus = {};
 
     for (const t of TARGETS) {
       try {
         const html = await fetchPage(t.url);
+        // 志願者速報リンクの出現チェック（主要3対象のみ・生HTMLを走査）
+        if (SOKUHO_TARGET_IDS.includes(t.id)) {
+          const links = scanSokuhoLinks(html, t.url);
+          const prevHrefs = state.sokuho[t.id];
+          sokuhoStatus[t.id] = { found: links.length, links: links.map(l => l.href) };
+          if (Array.isArray(prevHrefs)) {
+            for (const l of links) {
+              if (prevHrefs.includes(l.href)) continue;
+              updates.unshift({
+                id: 's' + Date.now() + '-' + t.id,
+                kind: 'sokuho',
+                uni: t.name, url: l.href, at: nowIso,
+                snippet: '「' + l.text + '」へのリンクが入試ページに出現しました（志願者速報の掲載が始まった可能性があります）',
+                read: false
+              });
+              changedCount++;
+              results.push({ id: t.id, status: 'sokuho-appeared', href: l.href });
+            }
+          }
+          state.sokuho[t.id] = links.map(l => l.href);
+        }
         const text = normalize(html);
         const hash = sha256(text);
         const prev = state.unis[t.id];
@@ -111,6 +157,13 @@ module.exports = async (req, res) => {
     try {
       await lib.fsSetField(lib.WATCH_DOC, 'state', JSON.stringify(state));
       if (changedCount) await lib.fsSetField(lib.WATCH_DOC, 'updates', JSON.stringify(updates.slice(0, 20)));
+      const anyFound = Object.values(sokuhoStatus).some(s => s.found > 0);
+      await lib.fsSetField(lib.WATCH_DOC, 'sokuho', JSON.stringify({
+        status: anyFound ? 'found' : 'pending',
+        checkedAt: nowIso,
+        perUni: sokuhoStatus,
+        note: anyFound ? '志願者速報へのリンクが出現しています' : '志願者速報ページは未出現（入試トップのリンク出現を監視中）'
+      }));
     } catch (e) { /* 保存失敗は次回に持ち越し */ }
 
     let pushResult = null;
@@ -122,7 +175,7 @@ module.exports = async (req, res) => {
         url: '/', tag: 'juken-adm-watch'
       });
     }
-    return lib.sendJson(res, 200, { ok: true, at: nowIso, results, changed: changedCount, push: pushResult });
+    return lib.sendJson(res, 200, { ok: true, at: nowIso, results, changed: changedCount, sokuho: sokuhoStatus, push: pushResult });
   } catch (e) {
     return lib.sendJson(res, 500, { error: 'internal error' });
   }

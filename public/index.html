@@ -793,6 +793,8 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
   <div id="home-adm-watch" style="display:none; margin-bottom:14px;"></div>
   <div id="home-ai-cost-alert" style="display:none; margin-bottom:14px;"></div>
   <div id="home-health-alert" style="display:none; margin-bottom:14px;"></div>
+  <div id="home-briefing" style="display:none; margin-bottom:14px;"></div>
+  <div id="home-alerts" style="display:none; margin-bottom:14px;"></div>
   <div id="live-band" style="margin-bottom:14px;"></div>
 
   <div id="today-ring-card" class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
@@ -1010,6 +1012,13 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
   </div>
 
   <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">🗓 週次AIレビュー（自動）</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body open">
+      <div id="server-weekly"><div class="empty">毎週月曜の朝に自動生成されます。</div></div>
+    </div>
+  </div>
+
+  <div class="expand-section">
     <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">⏱ 学習時間分析</div><span class="expand-arrow">▼</span></div>
     <div class="expand-body open">
       <div class="g2" style="margin-bottom:10px">
@@ -1186,6 +1195,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
       </div>
       <div id="chat-search-result" style="margin-top:8px;font-size:12px;color:var(--muted)"></div>
     </div>
+    <div id="chat-summary-box" style="display:none;margin-bottom:10px"></div>
     <div class="chat-msgs" id="chat-msgs">
       <div class="cb cb-ai">こんにちは！君の全学習状況、成績、予定などはすべて把握しています。悩みや質問があればいつでも相談してね！📚</div>
     </div>
