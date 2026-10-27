@@ -545,7 +545,7 @@ SelfTest.add('お金: サブタブ切替でセクションが絞られる', () =
     const tabs = MoneyView.tabsHtml();
     MoneyTab.TABS.forEach(t => assert(tabs.includes(`MoneyTab.set('${t.id}')`), `タブバーに ${t.id} があること`));
     assertEq(tabs.split(' btn-p"').length - 1, 1, 'アクティブなタブ（btn-p）は1つだけ');
-    assertEq(tabs.split(' btn-s"').length - 1, 5, '非アクティブなタブは btn-s で5つ');
+    assertEq(tabs.split(' btn-s"').length - 1, MoneyTab.TABS.length - 1, '非アクティブなタブは btn-s（アクティブ以外全部）');
     assert(!tabs.includes('border-radius:999px'), '独自のピル型スタイルを使っていないこと');
     // 現在のタブが保持される: 引数なしの描画は選択中タブ（PayPay）で描かれる
     const cur = MoneyView.html(data);
@@ -713,6 +713,76 @@ SelfTest.add('カレンダー: 今月ボタンで現在月へ戻れる', () => {
     assertEq(S.calMonth.getFullYear(), now.getFullYear(), '今月ボタンの年');
     assertEq(S.calMonth.getMonth(), now.getMonth(), '今月ボタンの月');
   } finally { S.calMonth = saved; if (typeof renderCal === 'function') renderCal(); }
+});
+
+SelfTest.add('サブスク: 初期投入は1回だけ・削除は復活しない', () => {
+  const saved = S.moneySubs;
+  try {
+    S.moneySubs = null;
+    assertEq(MoneySubs.ensureSeed(false), true, '未投入なら投入されること');
+    assertEq(S.moneySubs.seeded, true, '投入済みフラグが立つこと');
+    assertEq(S.moneySubs.items.length, 3, '初期データは3件');
+    const names = S.moneySubs.items.map(x => x.name);
+    assert(names.includes('Muse Power') && names.includes('Claude Pro') && names.includes('Google AI Pro'), '既知の契約が入ること');
+    const g = S.moneySubs.items.find(x => x.name === 'Google AI Pro');
+    assertEq(g.amount, 2900, 'Google AI Pro は現行の月額');
+    assert(g.memo.includes('1,450'), 'メモに AI Plus への切替予定が分かること');
+    assert(S.moneySubs.items.every(x => x.nextDate === ''), '次回支払日は推測で入れない（全て空欄）');
+    assertEq(MoneySubs.ensureSeed(false), false, '2回目は投入されないこと');
+    assertEq(S.moneySubs.items.length, 3, '再投入で重複しないこと');
+    S.moneySubs.items = [];
+    assertEq(MoneySubs.ensureSeed(false), false, '全削除後も再投入されないこと');
+    assertEq(S.moneySubs.items.length, 0, '削除した項目が復活しないこと');
+  } finally { S.moneySubs = saved; }
+});
+
+SelfTest.add('サブスク: CRUDと合計計算', () => {
+  const saved = S.moneySubs;
+  try {
+    S.moneySubs = { seeded: true, items: [] };
+    const a = MoneySubs.add({ name: 'テスト月額', amount: 3499, cycle: 'month', nextDate: '2026-11-01', memo: '' }, false);
+    const c = MoneySubs.add({ name: 'テスト年額', amount: 12000, cycle: 'year', nextDate: '', memo: 'x' }, false);
+    assertEq(S.moneySubs.items.length, 2, '追加できること');
+    const t = MoneySubs.totals(S.moneySubs.items);
+    assertEq(t.monthlyEq, 4499, '月額換算 = 3499 + 12000/12');
+    assertEq(t.yearlyEq, 53988, '年額換算 = 3499*12 + 12000');
+    assertEq(MoneySubs.update(a.id, { name: 'テスト月額2', amount: 1000, cycle: 'month', nextDate: '', memo: '' }, false), true, '編集できること');
+    assertEq(S.moneySubs.items.find(x => x.id === a.id).amount, 1000, '編集が反映されること');
+    assertEq(MoneySubs.remove(c.id, false), true, '削除できること');
+    assertEq(S.moneySubs.items.length, 1, '削除が反映されること');
+    const p = profileForServer();
+    assert('moneySubs' in p, 'moneySubs はプロフィール側で同期されること（profileForServerで落ちない）');
+  } finally { S.moneySubs = saved; }
+});
+
+SelfTest.add('サブスク: 定期支払い候補の検出と描画', () => {
+  const saved = S.moneySubs;
+  try {
+    S.moneySubs = { seeded: true, items: [{ id: 'x1', name: 'CLAUDE.AI', amount: 3499, cycle: 'month', nextDate: '', memo: '' }] };
+    const data = {
+      total: 0, categories: [], holdings: [], summaries: [],
+      kakeibo: { months: {
+        '2026-09': [
+          { date: '2026-09-03', title: 'APPLE COM BILL', cat: '通信費', src: 'PayPay銀行', io: 'out', amount: 600 },
+          { date: '2026-09-05', title: 'CLAUDE.AI', cat: '通信費', src: 'PayPay銀行', io: 'out', amount: 3499 },
+          { date: '2026-09-10', title: 'ローソン', cat: '食費', src: 'PayPay', io: 'out', amount: 520 }
+        ],
+        '2026-10': [
+          { date: '2026-10-03', title: 'APPLE COM BILL', cat: '通信費', src: 'PayPay銀行', io: 'out', amount: 600 },
+          { date: '2026-10-05', title: 'CLAUDE.AI', cat: '通信費', src: 'PayPay銀行', io: 'out', amount: 3499 }
+        ]
+      }, truncated: [] }
+    };
+    const cands = MoneySubs.detectCandidates(data, MoneySubs.items());
+    assertEq(cands.length, 1, '2か月連続の同額支出だけが候補（登録済みと1か月だけのものは除外）');
+    assertEq(cands[0].title, 'APPLE COM BILL', '候補のタイトル');
+    assertEq(cands[0].monthCount, 2, '候補の継続月数');
+    const html = MoneyView.html(data, 'subs');
+    assert(html.includes('CLAUDE.AI') && html.includes('月額換算の合計') && html.includes('¥41,988'), 'サブスクタブに登録済みと年額換算が出ること');
+    assert(html.includes('定期支払いの候補') && html.includes('APPLE COM BILL'), '候補が描画されること');
+    assert(html.includes('MoneySubs.openCandidate(0)'), '候補タップでフォームに流し込めること');
+    assert(MoneyTab.TABS.some(t => t.id === 'subs'), 'サブタブにサブスクがあること');
+  } finally { S.moneySubs = saved; }
 });
 
 SelfTest.add('お金: 家計簿は12か月以上の月と要約月を扱える', () => {
