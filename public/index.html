@@ -646,24 +646,164 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
   right: 24px !important;
   z-index: 10001 !important;
 }
+
+/* ================= 大型改修 v2027.10.28 =================
+   構造（下部タブバー / ホームのベントグリッド / お金のセグメント切替）は全スタイル共通。
+   新スタイル「すっきりモダン」は data-style="modern" のスコープ内だけで完結させ、
+   既存の「いつもの」「ぷっくりポップ」の見た目には手を入れない（ポップ用の追随上書きのみ追加）。 */
+
+/* --- 上部ヘッダー（旧・横スクロールナビの置き換え。本文の邪魔をしない細い帯） --- */
+.app-header{display:flex;align-items:center;gap:10px;max-width:1200px;margin:0 auto;padding:16px 20px 0}
+.app-logo-mark{width:36px;height:36px;border-radius:11px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;flex:none;box-shadow:0 4px 12px rgba(0,0,0,0.12)}
+.app-logo-name{font-weight:800;font-size:15px;letter-spacing:-.3px;line-height:1.25}
+.app-logo-sub{font-size:11px;color:var(--muted);font-weight:600;line-height:1.3}
+
+/* --- 下部タブバー（主要5ページ＋その他） --- */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:300;background:var(--nav-bg);
+  backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);
+  border-top:0.5px solid var(--border);box-shadow:0 -6px 24px rgba(0,0,0,0.06);
+  padding-bottom:env(safe-area-inset-bottom)}
+.tabbar-inner{position:relative;display:flex;max-width:640px;margin:0 auto;padding:6px 8px 4px}
+.tabbar .nav-btn{flex:1 1 0;min-width:0;flex-direction:column;gap:3px;height:52px;padding:4px 2px 2px;
+  font-size:10px;font-weight:700;border-radius:14px;justify-content:center;z-index:1}
+.tabbar .nav-icon{font-size:20px;line-height:1.15}
+.tabbar #nav-indicator{top:6px!important;height:46px!important;border-radius:14px;z-index:0!important}
+.main{padding-bottom:112px}
+#toast-container{bottom:calc(94px + env(safe-area-inset-bottom))}
+#update-banner{bottom:calc(90px + env(safe-area-inset-bottom))}
+
+/* --- 「その他」シートの項目 --- */
+.more-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.more-item{display:flex;align-items:center;gap:10px;padding:15px 14px;border:1px solid var(--border);border-radius:16px;
+  background:var(--bg);font-family:inherit;font-size:14px;font-weight:700;color:var(--text);cursor:pointer;text-align:left;position:relative;transition:all .15s}
+.more-item:active{transform:scale(0.97)}
+.more-item .nav-icon{font-size:20px}
+.more-item .nav-badge{top:8px;right:8px}
+
+/* --- お金のサブタブ：セグメントコントロール --- */
+.seg-row{display:flex;gap:2px;background:rgba(120,120,128,0.13);border-radius:999px;padding:3px;margin-bottom:12px}
+.seg-row .btn{flex:1 1 0;min-width:0;border-radius:999px;padding:7px 2px!important;font-size:12px;white-space:nowrap;overflow:hidden}
+.seg-row .btn-s{background:transparent;box-shadow:none}
+.seg-row .btn-s:hover{background:rgba(120,120,128,0.10)}
+.seg-row .btn-p{box-shadow:0 2px 8px rgba(0,0,0,0.14)}
+@media(max-width:380px){.seg-row .btn{font-size:11px!important}}
+
+/* --- ホーム：ベントグリッド --- */
+#page-home.active{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+#page-home>.page-hdr,#page-home>#home-evening-alert,#page-home>#live-band{grid-column:1/-1}
+#page-home>.card{grid-column:1/-1;margin-bottom:0!important}
+#page-home>.card.bento-half{grid-column:auto}
+#page-home>#home-stats{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:0!important}
+#page-home>#live-band{margin-bottom:0!important}
+@media(max-width:720px){#page-home>.card.bento-half{grid-column:1/-1}}
+@media(max-width:560px){#page-home>#home-stats{grid-template-columns:1fr 1fr}}
+
+/* --- ぷっくりポップ：新しい構造部品への追随（ポップの線と影で描く） --- */
+html:root[data-style="pop"] .tabbar{background:var(--pop-card);backdrop-filter:none;-webkit-backdrop-filter:none;
+  border-top:2px solid var(--pop-line);box-shadow:none}
+html:root[data-style="pop"] .app-logo-mark{background:var(--pop-yellow);color:var(--pop-ink);
+  border:2px solid var(--pop-line);box-shadow:2px 2px 0 var(--pop-line)}
+html:root[data-style="pop"] .more-item{background:var(--pop-card);border:2px solid var(--pop-line);
+  box-shadow:3px 3px 0 var(--pop-line);border-radius:16px}
+html:root[data-style="pop"] .seg-row{background:var(--pop-card);border:2px solid var(--pop-line);
+  box-shadow:3px 3px 0 var(--pop-line);padding:4px}
+html:root[data-style="pop"] .seg-row .btn{border:none!important;box-shadow:none!important}
+
+/* ================= 🌿 すっきりモダン（data-style="modern"） =================
+   上品で落ち着いた基調。温かみのあるニュートラル＋深い緑のアクセント1色。
+   影は柔らかい多層シャドウ、ガラス表現はやめてベタ塗りのカードにする。 */
+html:root[data-style="modern"]{
+  --bg:#F6F5F1; --card:#FFFFFF; --border:#E6E2D8; --text:#27251F; --muted:#8B867A;
+  --accent:#2F5D50; --a2:#B2552B; --a3:#4C7A57; --a4:#99731B; --pur:#655C96;
+  --r:18px; --sh:0 1px 2px rgba(39,37,31,.05),0 12px 32px rgba(39,37,31,.06);
+  --glass-blur:none; --nav-bg:rgba(255,255,255,0.88);
+}
+html:root[data-style="modern"][data-theme="dark"]{
+  --bg:#141412; --card:#1F1F1D; --border:rgba(255,255,255,0.09); --text:#F1EFE8; --muted:#A19C90;
+  --accent:#82B4A4; --sh:0 1px 2px rgba(0,0,0,.35),0 12px 32px rgba(0,0,0,.4);
+  --nav-bg:rgba(22,22,20,0.88);
+}
+@media(prefers-color-scheme:dark){
+  html:root[data-style="modern"]:not([data-theme="light"]){
+    --bg:#141412; --card:#1F1F1D; --border:rgba(255,255,255,0.09); --text:#F1EFE8; --muted:#A19C90;
+    --accent:#82B4A4; --sh:0 1px 2px rgba(0,0,0,.35),0 12px 32px rgba(0,0,0,.4);
+    --nav-bg:rgba(22,22,20,0.88);
+  }
+}
+html:root[data-style="modern"] body{background:var(--bg)}
+html:root[data-style="modern"] body::before, html:root[data-style="modern"] body::after{display:none}
+html:root[data-style="modern"] .card{
+  background:var(--card)!important;border:1px solid var(--border)!important;box-shadow:var(--sh)!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-radius:var(--r)!important;
+}
+html:root[data-style="modern"] .card:active{transform:none}
+html:root[data-style="modern"] .stat{
+  background:var(--card)!important;border:1px solid var(--border)!important;box-shadow:var(--sh)!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-radius:var(--r)!important;
+}
+html:root[data-style="modern"] .expand-hdr, html:root[data-style="modern"] .expand-body{
+  background:var(--card)!important;border:1px solid var(--border)!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+html:root[data-style="modern"] .expand-body{border-top:none!important}
+html:root[data-style="modern"] .mo{
+  background:var(--card)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+  border-top:1px solid var(--border);
+}
+html:root[data-style="modern"] input[type=text], html:root[data-style="modern"] input[type=number],
+html:root[data-style="modern"] input[type=date], html:root[data-style="modern"] input[type=time],
+html:root[data-style="modern"] input[type=password], html:root[data-style="modern"] select,
+html:root[data-style="modern"] textarea, html:root[data-style="modern"] .chat-inp{
+  background:var(--card)!important;border:1px solid var(--border)!important;border-radius:12px!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+html:root[data-style="modern"] input:focus, html:root[data-style="modern"] select:focus, html:root[data-style="modern"] textarea:focus{
+  border-color:var(--accent)!important;outline:none;
+  box-shadow:0 0 0 3px rgba(47,93,80,0.15);
+}
+html:root[data-style="modern"] .btn{border-radius:12px}
+html:root[data-style="modern"] .btn-p{background:var(--accent);box-shadow:0 6px 16px rgba(47,93,80,0.22)}
+html:root[data-style="modern"][data-theme="dark"] .btn-p{color:#0F201A}
+html:root[data-style="modern"] .btn-s{background:rgba(70,66,56,0.08)}
+html:root[data-style="modern"] .btn-s:hover{background:rgba(70,66,56,0.14)}
+html:root[data-style="modern"][data-theme="dark"] .btn-s{background:rgba(255,255,255,0.09)}
+html:root[data-style="modern"] .send-btn{background:var(--accent)}
+html:root[data-style="modern"] .cb-user{background:var(--accent)}
+html:root[data-style="modern"] .page-title{font-weight:800;letter-spacing:-.4px}
+html:root[data-style="modern"] .section-title{font-weight:800}
+html:root[data-style="modern"] .tabbar{box-shadow:0 -8px 28px rgba(39,37,31,0.07)}
+html:root[data-style="modern"] .tabbar #nav-indicator{background:rgba(47,93,80,0.13);mix-blend-mode:normal}
+html:root[data-style="modern"][data-theme="dark"] .tabbar #nav-indicator{background:rgba(130,180,164,0.20);mix-blend-mode:normal}
+html:root[data-style="modern"] .app-logo-mark{box-shadow:0 4px 12px rgba(47,93,80,0.28)}
+html:root[data-style="modern"] .seg-row{background:rgba(70,66,56,0.09)}
+html:root[data-style="modern"] .seg-row .btn-p{background:var(--card);color:var(--text);box-shadow:0 1px 5px rgba(39,37,31,0.16)}
+html:root[data-style="modern"][data-theme="dark"] .seg-row{background:rgba(255,255,255,0.09)}
+html:root[data-style="modern"] .more-item{background:var(--card)}
+html:root[data-style="modern"] .timer-wrap{border-radius:18px}
+html:root[data-style="modern"] .hw-card{background:var(--card)}
+</style>
 </style>
 </head>
 <body>
 
 <div id="toast-container"></div>
-<nav class="top-nav">
-<div id="nav-indicator"></div>
-  <div class="app-logo">📚 受験管理</div>
-  <button class="nav-btn active" onclick="showPage('home',this)"><span class="nav-icon">🏠</span>ホーム<span class="nav-badge" id="nb-home" style="display:none"></span></button>
-  <button class="nav-btn" onclick="showPage('timer',this)"><span class="nav-icon">⏱</span>タイマー</button>
-  <button class="nav-btn" onclick="showPage('calendar',this)"><span class="nav-icon">📅</span>カレンダー</button>
-  <button class="nav-btn" onclick="showPage('uni',this)"><span class="nav-icon">🎓</span>志望校</button>
-      <button class="nav-btn" onclick="showPage('apply',this)"><span class="nav-icon">📮</span>出願<span class="nav-badge" id="nb-apply" style="display:none"></span></button>
-  <button class="nav-btn" onclick="showPage('analytics',this)"><span class="nav-icon">📊</span>分析</button>
-  <button class="nav-btn" onclick="showPage('sunzemi',this)"><span class="nav-icon">🏫</span>駿台<span class="nav-badge" id="nb-sunzemi" style="display:none"></span></button>
-  <button class="nav-btn" onclick="showPage('aicoach',this)"><span class="nav-icon">👨‍🏫</span>AIコーチ</button>
-  <button class="nav-btn" onclick="showPage('money',this)"><span class="nav-icon">💰</span>お金</button>
-  <button class="nav-btn" onclick="showPage('settings',this)"><span class="nav-icon">⚙️</span>設定</button>
+<header class="app-header">
+  <div class="app-logo-mark">📚</div>
+  <div>
+    <div class="app-logo-name">受験管理アプリ 2027</div>
+    <div class="app-logo-sub">AIコーチ搭載</div>
+  </div>
+</header>
+<nav class="tabbar" aria-label="メインナビゲーション">
+  <div class="tabbar-inner">
+    <div id="nav-indicator"></div>
+    <button class="nav-btn active" onclick="showPage('home',this)"><span class="nav-icon">🏠</span>ホーム<span class="nav-badge" id="nb-home" style="display:none"></span></button>
+    <button class="nav-btn" onclick="showPage('timer',this)"><span class="nav-icon">⏱</span>タイマー</button>
+    <button class="nav-btn" onclick="showPage('calendar',this)"><span class="nav-icon">📅</span>カレンダー</button>
+    <button class="nav-btn" onclick="showPage('apply',this)"><span class="nav-icon">📮</span>出願<span class="nav-badge" id="nb-apply" style="display:none"></span></button>
+    <button class="nav-btn" onclick="showPage('aicoach',this)"><span class="nav-icon">👨‍🏫</span>AIコーチ</button>
+    <button class="nav-btn" id="tab-more-btn" onclick="showMo('mo-more')"><span class="nav-icon">🧭</span>その他<span class="nav-badge" id="nb-more" style="display:none"></span></button>
+  </div>
 </nav>
 
 <div class="main">
@@ -709,11 +849,11 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
   <div style="font-size:10px; color:var(--muted); text-align:center; margin-top:10px;">到着予定は出発の約53分後です</div>
   <div id="bus-live-info"></div>
 </div>
-  <div class="card">
+  <div class="card bento-half">
     <div class="card-hdr"><span class="card-hdr-title">📈 科目別得点目標</span><button class="btn btn-s btn-sm" onclick="renderScoreTargetSettings(); showMo('mo-score-target')">目標設定</button></div>
     <div id="home-subj-prog"><div class="empty">科目の目標を設定してください</div></div>
   </div>
-  <div class="card">
+  <div class="card bento-half">
     <div class="card-hdr"><span class="card-hdr-title">🎯 志望校 合可能性</span></div>
     <div id="home-uni-prob"><div class="empty">志望校タブから大学を登録してください</div></div>
   </div>
@@ -1117,7 +1257,7 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
     </div>
     <div style="display:flex;gap:6px;flex:none"><button type="button" class="btn btn-s btn-sm" id="money-mask-btn" onclick="MoneyUi.toggle()" aria-pressed="false">👁 金額オン</button><button class="btn btn-s btn-sm" onclick="renderMoney(true)">🔄 更新</button></div>
   </div>
-  <div id="money-tabs" style="position:sticky;top:calc(var(--nav-h) + 20px);z-index:150;background:var(--bg);padding:8px 0 2px"></div>
+  <div id="money-tabs" style="position:sticky;top:10px;z-index:150;background:var(--bg);padding:8px 0 2px"></div>
   <div id="money-root"><div class="card"><div class="empty">お金のデータを読み込み中…</div></div></div>
 </div>
 
@@ -1211,6 +1351,19 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
     </div>
   </div>
 </div>
+
+<!-- 🧭 その他のページ（下部タブバーに入りきらないページへの導線） -->
+<div class="ov" id="mo-more" onclick="closeMo('mo-more')"><div class="mo" onclick="event.stopPropagation()">
+<div class="mo-title">🧭 その他のページ</div>
+<div class="more-grid">
+  <button class="more-item" onclick="closeMo('mo-more');showPage('uni')"><span class="nav-icon">🎓</span>志望校</button>
+  <button class="more-item" onclick="closeMo('mo-more');showPage('analytics')"><span class="nav-icon">📊</span>分析</button>
+  <button class="more-item" onclick="closeMo('mo-more');showPage('sunzemi')"><span class="nav-icon">🏫</span>駿台<span class="nav-badge" id="nb-sunzemi" style="display:none"></span></button>
+  <button class="more-item" onclick="closeMo('mo-more');showPage('money')"><span class="nav-icon">💰</span>お金</button>
+  <button class="more-item" onclick="closeMo('mo-more');showPage('settings')"><span class="nav-icon">⚙️</span>設定</button>
+</div>
+<div class="mt12"><button class="btn btn-s btn-full" onclick="closeMo('mo-more')">閉じる</button></div>
+</div></div>
 </div><!-- /.main : ここまでがページ本体。以降のモーダルは position:fixed なので外に出す
      （中に入れたままだと、モーダルを開いたまま横スワイプしたときにタブが切り替わってしまう） -->
 
