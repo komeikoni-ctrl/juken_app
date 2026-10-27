@@ -26,8 +26,11 @@ const EVENTS = [
   { id: 'result-doshisha-econ', date: '2027-02-15', label: '同志社大学 経済 合格発表' },
   { id: 'result-rits',      date: '2027-02-17', label: '立命館大学 合格発表' },
   { id: 'result-doshisha-sho',  date: '2027-02-18', label: '同志社大学 商 合格発表' },
-  { id: 'enroll-close',     date: '2027-03-01', label: '入学手続 一次締切' }
+  { id: 'enroll-close',     date: '2027-03-01', label: '入学手続 一次締切（立命館・同志社）' }
 ];
+// 手続系の日程は enroll-close（立命館 経済・経営／同志社の一次手続締切
+// 2027-03-01、アプリの出願データで確認済み）が対象。近畿大学の手続締切は
+// 確定情報が無いため入れていない（推測の日付で通知しない）。
 const NOTIFY_DIFFS = [3, 1, 0]; // 3日前・前日・当日に通知
 
 // JST の今日を YYYY-MM-DD で返す
