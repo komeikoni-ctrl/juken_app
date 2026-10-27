@@ -547,8 +547,7 @@ const applyTheme = (mode) => {
 
   // カプセルを動かす
   const syncIndicator = (id) => {
-    let btn = document.querySelector(`.tabbar .nav-btn[onclick*="'${id}'"]`);
-    if (!btn) btn = document.getElementById('tab-more-btn');
+    const btn = document.querySelector(`.nav-btn[onclick*="'${id}'"]`);
     if(btn && indicator) {
       indicator.style.width = (btn.offsetWidth - 8) + 'px';
       indicator.style.transform = `translateX(${btn.offsetLeft + 4}px)`;
@@ -575,13 +574,10 @@ const applyTheme = (mode) => {
 
     // ナビボタン状態更新
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    // タブバーに無いページ（その他シート側）は「その他」ボタンをアクティブにする
-    let targetBtn = btn || document.querySelector(`.tabbar .nav-btn[onclick*="'${id}'"]`);
-    if (!targetBtn) targetBtn = document.getElementById('tab-more-btn');
+    const targetBtn = btn || document.querySelector(`.nav-btn[onclick*="'${id}'"]`);
     if (targetBtn) {
       targetBtn.classList.add('active');
-      // 下部タブバーは固定表示で常に見えているので、そこではスクロールさせない
-      if (!targetBtn.closest('.tabbar')) targetBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      targetBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
 
     // ページごとの初期化（全ページ対応）
