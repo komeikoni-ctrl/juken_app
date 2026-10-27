@@ -32,7 +32,8 @@ const defaultS = {
   privSim: { en: 60, jp: 60, sel: 60, ma: 40 },   // 私大一般の合格ラインチェックで入れた得点率（%）
   trash: [],                 // ゴミ箱（削除から30日間保持。端末間で同期する）
   aiModel: '',               // 使用するGeminiモデル（端末間で同期。APIキーは安全のため同期しない）
-  morningPlan: null          // その日の「今日やるべきこと」AI提案のキャッシュ
+  morningPlan: null,         // その日の「今日やるべきこと」AI提案のキャッシュ
+  moneySubs: null            // サブスク管理（お金タブ）のマスタ。null=未投入で、初回だけ既知の契約を投入する（{seeded,items} 形。プロフィール側で同期する）
 };
 
 const Store = {
