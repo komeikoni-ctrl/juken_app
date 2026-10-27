@@ -98,6 +98,9 @@ const updateNavBadges = () => {
   if (nb) { const n = pendingTasks; nb.textContent = n > 0 ? (n > 9 ? '9+' : n) : ''; nb.style.display = n > 0 ? 'flex' : 'none'; }
   const nbs = document.getElementById('nb-sunzemi');
   if (nbs) { nbs.textContent = overdueHw > 0 ? (overdueHw > 9 ? '9+' : overdueHw) : ''; nbs.style.display = overdueHw > 0 ? 'flex' : 'none'; }
+  // 駿台は「その他」シート側にあるので、タブバーのその他ボタンにも同じ知らせを出す
+  const nbm = document.getElementById('nb-more');
+  if (nbm) { nbm.textContent = overdueHw > 0 ? (overdueHw > 9 ? '9+' : overdueHw) : ''; nbm.style.display = overdueHw > 0 ? 'flex' : 'none'; }
 };
 
 // 💡 ホーム画面のレンダリング関数を上書き（真の合計時間を反映）
