@@ -1,0 +1,1 @@
+{"crons":[{"path":"/api/cron-notify","schedule":"0 23 * * *"},{"path":"/api/cron-watch","schedule":"5 23 * * *"}]}
