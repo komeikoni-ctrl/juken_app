@@ -268,6 +268,7 @@ const renderCal = () => {
   }  document.getElementById('cal-body').innerHTML = html; renderEvList(); 
 };
 window.chMonth = (d) => { S.calMonth = new Date(S.calMonth.getFullYear(), S.calMonth.getMonth()+d, 1); renderCal(); };
+window.chCalToday = () => { S.calMonth = new Date(); renderCal(); }; // 今月へ一発で戻る
 
 // 📱 カレンダースワイプ対応
 (function() {
