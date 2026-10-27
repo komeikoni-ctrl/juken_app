@@ -443,6 +443,33 @@ SelfTest.add('モデルの自動切替: 系統・保存値・チャット用だ�
   }
 });
 
+SelfTest.add('AI中継: 中継を試す条件とリクエスト整形', () => {
+  const savedState = AiProxy.state;
+  try {
+    AiProxy.state = 'unknown';
+    assert(AiProxy.shouldTry('{}'), '通常サイズなら中継を試すこと');
+    assert(!AiProxy.shouldTry('x'.repeat(AiProxy.MAX_BODY_BYTES + 1)), '大きすぎる送信は中継を試さないこと（Vercelの上限回避）');
+    AiProxy.state = 'down';
+    assert(!AiProxy.shouldTry('{}'), '中継が使えないと判定済みなら試さないこと');
+    AiProxy.state = 'unknown';
+    const b = AiProxy.buildBody('gemini-3.8-flash', { contents: [] }, true);
+    assertEq(b.model, 'gemini-3.8-flash', '中継ボディにモデルが入ること');
+    assertEq(b.stream, true, '中継ボディに stream が伝わること');
+    assert(Array.isArray(b.payload.contents), '中継ボディに payload がそのまま入ること');
+  } finally { AiProxy.state = savedState; }
+});
+
+SelfTest.add('AI中継: 失敗時のフォールバック判定', () => {
+  assertEq(AiProxy.decide({ status: 503, errStatus: 'PROXY_NOT_CONFIGURED', hasKey: false }), 'fallback', 'サーバー未設定（503）ならキー無しでも直接経路へ切り替えること');
+  assertEq(AiProxy.decide({ status: 404, errStatus: '', hasKey: true }), 'fallback', '中継が無い環境（404）なら直接へ切り替えること');
+  assertEq(AiProxy.decide({ status: 405, errStatus: '', hasKey: false }), 'fallback', '405 でも直接へ切り替えること');
+  assertEq(AiProxy.decide({ status: 502, errStatus: 'PROXY_UPSTREAM', hasKey: true }), 'fallback', '中継の上流エラーでキーがあるなら直接を試すこと');
+  assertEq(AiProxy.decide({ status: 502, errStatus: 'PROXY_UPSTREAM', hasKey: false }), 'return', 'キーが無ければ中継のエラーをそのまま返すこと');
+  assertEq(AiProxy.decide({ status: 403, errStatus: '', hasKey: true }), 'return', 'Gemini側の403（キー無効等）は中継の失敗と誤判定しないこと');
+  assertEq(AiProxy.decide({ status: 429, errStatus: '', hasKey: false }), 'return', 'Gemini側の429はそのまま返すこと');
+  assertEq(AiProxy.decide({ status: 400, errStatus: 'PROXY_MODEL', hasKey: true }), 'return', '許可リスト外モデルの拒否はそのまま返すこと');
+});
+
 SelfTest.add('お金: Firestoreドキュメントの解釈', () => {
   const data = { total: 28088, categories: [{ name: '普通預金', amount: 22290, accounts: [] }], holdings: [], summaries: [], paypay: null };
   const raw = { fields: { money: { stringValue: JSON.stringify(data) }, updatedAt: { timestampValue: '2026-10-27T01:32:51Z' } } };
