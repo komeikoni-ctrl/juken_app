@@ -901,20 +901,16 @@ SelfTest.add('見た目のスタイル: すっきりモダンが増えて既存2
   }
 });
 
-SelfTest.add('ナビ: 下部タブバーとその他シートから全ページへ遷移できる', () => {
-  const bar = document.querySelector('.tabbar');
-  assert(!!bar, '下部タブバーがあること');
-  const prim = ['home', 'timer', 'calendar', 'apply', 'aicoach'];
-  prim.forEach(id => assert(!!bar.querySelector(`.nav-btn[onclick*="'${id}'"]`), `タブバーに ${id} のボタンがあること`));
-  const moreBtn = document.getElementById('tab-more-btn');
-  assert(!!moreBtn, 'その他ボタンがあること');
-  const sheet = document.getElementById('mo-more');
-  assert(!!sheet, 'その他シートがあること');
-  const sec = ['uni', 'analytics', 'sunzemi', 'money', 'settings'];
-  sec.forEach(id => assert(!!sheet.querySelector(`[onclick*="showPage('${id}')"]`), `その他シートに ${id} への導線があること`));
+SelfTest.add('ナビ: 上部ナビから全ページへ遷移できる', () => {
+  const nav = document.querySelector('.top-nav');
+  assert(!!nav, '上部ナビがあること');
+  assert(!document.querySelector('.tabbar'), '下部タブバーが無いこと');
+  assert(!document.getElementById('mo-more'), 'その他シートが無いこと');
+  const all = ['home', 'timer', 'calendar', 'uni', 'apply', 'analytics', 'sunzemi', 'aicoach', 'money', 'settings'];
+  all.forEach(id => assert(!!nav.querySelector(`.nav-btn[onclick*="'${id}'"]`), `上部ナビに ${id} のボタンがあること`));
   // 全ページへ実際に切り替えて、表示ページが合うこと（描画側で例外が出ても表示切替までは済んでいる）
   const beforePage = S.currentPage;
-  [...prim, ...sec].forEach(id => {
+  all.forEach(id => {
     try { showPage(id); } catch (e) { /* 描画の例外はここでは見ない */ }
     assert(document.getElementById('page-' + id).classList.contains('active'), `${id} ページが表示されること`);
     assertEq(S.currentPage, id, `現在ページが ${id} になること`);
@@ -930,7 +926,7 @@ SelfTest.add('ホーム: ベントグリッドの全ブロックが揃い、グ�
   assertEq(halves.length, 2, '半幅タイル（得点目標・合可能性）が2つあること');
   const css = Array.from(document.querySelectorAll('style')).map(el => el.textContent).join('\n');
   assert(css.includes('#page-home.active') && css.includes('grid-template-columns:1fr 1fr'), 'ホームのベントグリッドCSSがあること');
-  assert(css.includes('.tabbar{position:fixed'), 'タブバーが下部固定のCSSであること');
+  assert(css.includes('.top-nav{'), '上部ナビのCSSがあること');
   assert(css.includes('.seg-row'), 'お金サブタブのセグメントCSSがあること');
   assert(css.includes('[data-style="modern"]'), 'すっきりモダンのCSSスコープがあること');
 });
