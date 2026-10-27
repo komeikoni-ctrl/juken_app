@@ -351,11 +351,13 @@ MoneyView.monthBar = (months, current, handler) => {
   </div>`;
 };
 
-// サブタブバー。「更新」ボタンの行の下・最初のカードの上（index.html の #money-tabs）に出す
+// サブタブバー。「更新」ボタンの行の下・最初のカードの上（index.html の #money-tabs）に出す。
+// 見た目はセグメントコントロール（連結した一体型の切替）: トラックの描画は CSS の .seg-row が担い、
+// ボタン自体は従来どおり .btn btn-sm（アクティブ btn-p / 非アクティブ btn-s）のままにする。
 MoneyView.tabsHtml = () => {
   const cur = MoneyTab.current;
   const btn = (t) => MoneyView.chipBtn(t.label, `MoneyTab.set('${t.id}')`, t.id === cur);
-  return MoneyView.chipRow(MoneyTab.TABS.map(btn).join(''));
+  return `<div class="seg-row" role="tablist">${MoneyTab.TABS.map(btn).join('')}</div>`;
 };
 
 
