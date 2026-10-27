@@ -25,6 +25,75 @@ const STREAM_IDLE_TIMEOUT_MS = 90000;
 // 'minimal' は 3.8 Flash では未対応なので使わない。
 const THINKING_BY_PURPOSE = { fast: 'low', normal: null, deep: 'high' };
 
+// ============================================================
+// AI 中継（Vercel Functions /api/gemini）クライアント
+// ------------------------------------------------------------
+// Vercel 上ではサーバー側がキーを持って中継するので、端末に
+// キーが無くても AI 機能が使える。中継が無い環境（GitHub Pages
+// では /api/gemini が 404/405 になる）や、中継にキーが未設定の
+// ときは、このセッションでは中継を使わないと覚えて従来の
+// 直接呼び出し（localStorage のキー）にフォールバックする。
+// ============================================================
+const AiProxy = {
+  endpoint: '/api/gemini',
+  // 'unknown' | 'ok' | 'down'（セッション内だけの判定メモ）
+  state: 'unknown',
+  // Vercel Functions のリクエスト上限（4.5MB）に収まる範囲だけ中継を使う。
+  // 大きな画像添付などは最初から直接呼び出しにする
+  MAX_BODY_BYTES: 4 * 1024 * 1024,
+
+  shouldTry: (bodyStr) => AiProxy.state !== 'down' && (bodyStr || '').length <= AiProxy.MAX_BODY_BYTES,
+
+  buildBody: (model, payload, stream) => ({ model, stream: !!stream, payload }),
+
+  // 中継のエラーを「直接呼び出しに切り替えるべきか」で分類する（純粋関数・テスト対象）
+  // status: HTTPステータス, errStatus: 中継のエラーコード, hasKey: 端末にキーがあるか
+  decide: ({ status, errStatus, hasKey }) => {
+    if (errStatus === 'PROXY_NOT_CONFIGURED') return 'fallback'; // サーバー未設定 → 直接へ
+    if (status === 404 || status === 405 || status === 501) return 'fallback'; // 中継が存在しない環境
+    if ((errStatus === 'PROXY_UPSTREAM' || errStatus === 'PROXY_TOO_LARGE') && hasKey) return 'fallback';
+    return 'return';
+  },
+
+  // 中継で実際に呼んでみる。使えなければ null（＝直接へ）、
+  // 中継からの応答（成功・Gemini のエラーとも）があればその Response を返す
+  tryFetch: async (model, payload, { stream = false, signal = null } = {}) => {
+    let res;
+    try {
+      res = await AiService._fetchWithTimeout(AiProxy.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(AiProxy.buildBody(model, payload, stream))
+      }, { stream, signal });
+    } catch (e) {
+      if (e.kind === 'abort') throw e; // 中断・タイムアウトは中継の失敗ではない
+      return null; // 通信自体ができない → 直接で正規のエラーを出す
+    }
+    const isProxy = res.headers.get('x-ai-proxy') === '1';
+    if (!isProxy) {
+      // 中継ではない応答（Pages の 404/405 ページ等）
+      if (res.status === 404 || res.status === 405 || res.status === 501) {
+        AiProxy.state = 'down';
+        try { res.body?.cancel(); } catch (e) { /* noop */ }
+        return null;
+      }
+      return res;
+    }
+    if (res.ok) { AiProxy.state = 'ok'; return res; }
+    // 中継側のエラーは本文（小さいJSON）を覗いて切り替え判定する
+    let errStatus = '';
+    try { const ej = await res.clone().json(); errStatus = ej?.error?.status || ''; } catch (e) { /* 本文なし */ }
+    const d = AiProxy.decide({ status: res.status, errStatus, hasKey: !!AiService.getKey() });
+    if (d === 'fallback') {
+      if (errStatus === 'PROXY_NOT_CONFIGURED' || res.status === 404 || res.status === 405) AiProxy.state = 'down';
+      try { res.body?.cancel(); } catch (e) { /* noop */ }
+      return null;
+    }
+    AiProxy.state = 'ok';
+    return res;
+  }
+};
+
 const AiService = {
   getModel: () => {
     const sel = document.getElementById('set-model')?.value || '';
@@ -60,22 +129,44 @@ const AiService = {
     return `https://generativelanguage.googleapis.com/v1beta/models/${model}:${method}`;
   },
 
-  fetchOnce: async (model, payload, { stream = false, signal = null } = {}) => {
-    const apiKey = AiService.getKey();
-    if (!apiKey) throw new Error('⚙️設定タブからGemini APIキーを入力してください。');
-    // APIキーはURLではなくヘッダーで送る（履歴・Referer・プロキシログへの流出を防ぐ）
-    const headers = { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey };
+  // タイムアウトと中断を管理して fetch する共通部分。
+  // 失敗は e.kind（'abort' | 'network'）付きで投げ、呼び出し側が
+  // 「中継が使えないだけか、本当の通信エラーか」を判別できるようにする
+  _fetchWithTimeout: async (url, init, { stream = false, signal = null } = {}) => {
     const ctrl = new AbortController();
     if (signal) signal.addEventListener('abort', () => ctrl.abort(), { once: true });
     const timer = stream ? null : setTimeout(() => ctrl.abort(), API_TIMEOUT_MS);
     try {
-      return await fetch(AiService.buildUrl(model, stream), {
-        method: 'POST', headers, body: JSON.stringify(payload), signal: ctrl.signal
-      });
+      return await fetch(url, { ...init, signal: ctrl.signal });
     } catch (e) {
-      if (e.name === 'AbortError') throw new Error('AIの応答が時間内に返りませんでした。もう一度お試しください。');
-      throw new Error('ネットワークに接続できませんでした。通信環境を確認してください。');
+      const err = new Error(e.name === 'AbortError'
+        ? 'AIの応答が時間内に返りませんでした。もう一度お試しください。'
+        : 'ネットワークに接続できませんでした。通信環境を確認してください。');
+      err.kind = e.name === 'AbortError' ? 'abort' : 'network';
+      throw err;
     } finally { if (timer) clearTimeout(timer); }
+  },
+
+  // 従来経路: 端末に保存したキーで Gemini API を直接呼ぶ
+  fetchDirect: async (model, payload, body, { stream = false, signal = null } = {}) => {
+    const apiKey = AiService.getKey();
+    if (!apiKey) throw new Error('⚙️設定タブからGemini APIキーを入力してください。');
+    // APIキーはURLではなくヘッダーで送る（履歴・Referer・プロキシログへの流出を防ぐ）
+    const headers = { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey };
+    return AiService._fetchWithTimeout(AiService.buildUrl(model, stream), {
+      method: 'POST', headers, body
+    }, { stream, signal });
+  },
+
+  fetchOnce: async (model, payload, { stream = false, signal = null } = {}) => {
+    const body = JSON.stringify(payload);
+    // まず同一オリジンの中継（Vercel）を試す。使えればキー不要。
+    // 中継が無い環境（GitHub Pages 等）では従来の直接呼び出しに戻る
+    if (AiProxy.shouldTry(body)) {
+      const proxied = await AiProxy.tryFetch(model, payload, { stream, signal });
+      if (proxied) return proxied;
+    }
+    return AiService.fetchDirect(model, payload, body, { stream, signal });
   },
 
   // HTTPエラーを日本語の原因つき例外に変換する。再試行が必要な場合は
