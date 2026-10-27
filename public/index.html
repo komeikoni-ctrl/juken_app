@@ -49,6 +49,7 @@ html,body{
   font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Yu Gothic UI',sans-serif;
   background:var(--bg);color:var(--text);font-size:15px;
   overflow-x:hidden;
+  overflow-x:clip;
   position:relative;z-index:0;
   transition:background 0.5s ease;
 }
@@ -665,6 +666,10 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
 .seg-row .btn-s:hover{background:rgba(120,120,128,0.10)}
 .seg-row .btn-p{box-shadow:0 2px 8px rgba(0,0,0,0.14)}
 @media(max-width:380px){.seg-row .btn{font-size:11px!important}}
+/* 狭い画面では「月次レポート」等が見切れるため、お金のサブタブだけ横スクロール可にする */
+#money-tabs .seg-row{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+#money-tabs .seg-row::-webkit-scrollbar{display:none}
+#money-tabs .seg-row .btn{flex:1 0 auto}
 
 /* --- ホーム：ベントグリッド --- */
 #page-home.active{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
@@ -1274,7 +1279,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
       <div class="page-title">💰 お金</div>
       <div class="muted" id="money-updated" style="font-size:12px">マネーフォワード ME・2時間おき自動更新</div>
     </div>
-    <div style="display:flex;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end"><button type="button" class="btn btn-s btn-sm" id="money-mask-btn" onclick="MoneyUi.toggle()" aria-pressed="false">👁 金額オン</button><button class="btn btn-s btn-sm" onclick="ExportUI.kakeiboCsv()">📥 家計簿CSV</button><button class="btn btn-s btn-sm" onclick="ExportUI.report()">📄 月次レポート</button><button class="btn btn-s btn-sm" onclick="renderMoney(true)">🔄 更新</button></div>
+    <div style="display:flex;gap:6px;flex:1 1 auto;min-width:0;flex-wrap:wrap;justify-content:flex-end"><button type="button" class="btn btn-s btn-sm" id="money-mask-btn" onclick="MoneyUi.toggle()" aria-pressed="false">👁 金額オン</button><button class="btn btn-s btn-sm" onclick="ExportUI.kakeiboCsv()">📥 家計簿CSV</button><button class="btn btn-s btn-sm" onclick="ExportUI.report()">📄 月次レポート</button><button class="btn btn-s btn-sm" onclick="renderMoney(true)">🔄 更新</button></div>
   </div>
   <div id="money-tabs" style="position:sticky;top:calc(var(--nav-h) + 20px);z-index:150;background:var(--bg);padding:8px 0 2px"></div>
   <div id="money-root"><div class="card"><div class="empty">お金のデータを読み込み中…</div></div></div>

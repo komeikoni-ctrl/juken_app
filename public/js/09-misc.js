@@ -601,7 +601,9 @@ const applyTheme = (mode) => {
     const targetBtn = btn || document.querySelector(`.nav-btn[onclick*="'${id}'"]`);
     if (targetBtn) {
       targetBtn.classList.add('active');
-      targetBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      // scrollIntoView はウィンドウごと横スクロールさせてしまうため、ナビ内だけをスクロールする
+      const navEl = targetBtn.closest('.top-nav');
+      if (navEl) navEl.scrollTo({ left: Math.max(0, targetBtn.offsetLeft - (navEl.clientWidth - targetBtn.offsetWidth) / 2), behavior: 'smooth' });
     }
 
     // ページごとの初期化（全ページ対応）
