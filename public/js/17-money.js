@@ -610,17 +610,21 @@ MoneyView.sections = (data) => {
     (subsItems.length ? subsItems.map(subRow).join('') : '<div class="empty">登録されているサブスクはまだありません。「＋ 追加」から登録できます。</div>') +
     `</div>`;
 
-  // ⑤ PayPay（CSVスナップショット）
+  // ⑤ PayPay（CSVスナップショット＋アプリから取込）
   const pp = data.paypay;
   const ppMonths = (pp && Array.isArray(pp.monthlyPayments)) ? pp.monthlyPayments.slice(-6) : [];
   const ppMax = ppMonths.length ? Math.max(...ppMonths.map(m => m.amount), 1) : 1;
-  out.paypay = ppMonths.length
-    ? `<div class="card"><div class="card-hdr"><span class="card-hdr-title">📱 PayPay の支払い</span><span class="badge" style="font-size:10px">CSVスナップショット</span></div>` +
-      ppMonths.map(m => MoneyView.row(MoneyView.ymLabel(m.month), `${m.count}件`, m.amount, Math.round(m.amount / ppMax * 100), 'var(--pur)')).join('') +
-      `<div style="font-size:12px;font-weight:700;margin:12px 0 4px">よく使う店（全期間）</div>` +
-      (pp.topMerchants || []).map(t => MoneyView.row(t.name, `${t.count}件`, t.amount, null)).join('') +
-      `<div class="muted" style="font-size:11px;margin-top:8px">対象期間 ${esc(pp.periodFrom || '')} 〜 ${esc(pp.periodTo || '')}・全期間の支払い合計 ${MoneyView.yen(pp.totalPayments)}（${pp.paymentCount}件）。PayPayは自動連携が無いため、この欄は取引履歴CSVを取り込んだ時点のスナップショットです（自動更新されません）。</div></div>`
-    : '';
+  const ppImportHtml = `<div style="margin-top:10px"><button type="button" class="btn btn-s btn-sm" onclick="document.getElementById('paypay-import-input').click()">📱 PayPay CSVを取り込む</button>`
+    + `<input type="file" id="paypay-import-input" accept=".csv,text/csv" style="display:none" onchange="PayPayImportUI.onFile(event)">`
+    + `<div id="paypay-import-c"></div></div>`;
+  out.paypay = `<div class="card"><div class="card-hdr"><span class="card-hdr-title">📱 PayPay の支払い</span><span class="badge" style="font-size:10px">CSVスナップショット</span></div>`
+    + (ppMonths.length
+      ? ppMonths.map(m => MoneyView.row(MoneyView.ymLabel(m.month), `${m.count}件`, m.amount, Math.round(m.amount / ppMax * 100), 'var(--pur)')).join('') +
+        `<div style="font-size:12px;font-weight:700;margin:12px 0 4px">よく使う店（全期間）</div>` +
+        (pp.topMerchants || []).map(t => MoneyView.row(t.name, `${t.count}件`, t.amount, null)).join('') +
+        `<div class="muted" style="font-size:11px;margin-top:8px">対象期間 ${esc(pp.periodFrom || '')} 〜 ${esc(pp.periodTo || '')}・全期間の支払い合計 ${MoneyView.yen(pp.totalPayments)}（${pp.paymentCount}件）。PayPayは自動連携が無いため、この欄は取引履歴CSVを取り込んだ時点のスナップショットです。</div>`
+      : '<div class="empty">PayPay のデータはまだありません。下のボタンから取引履歴CSVを取り込めます。</div>')
+    + ppImportHtml + `</div>`;
 
   // ⑦ 月次家計レポート（サーバー生成: 19-server.js の HouseholdReportUI が描く）
   out.report = (typeof HouseholdReportUI !== 'undefined' && HouseholdReportUI.html) ? HouseholdReportUI.html() : '';

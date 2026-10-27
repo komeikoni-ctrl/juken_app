@@ -24,6 +24,10 @@ const BACKUPS_INDEX_DOC = 'live/backups'; // fields.days = バックアップ日
 const HEALTH_DOC = 'live/health';        // fields.health = 健全性チェック結果 JSON
 const MONEY_DOC = 'live/money';          // fields.money = お金データ JSON（外部チェッカーが書き込み）
 const FEEDS_DOC = 'live/feeds';          // 16-live.js の中継ドキュメント
+const PAYPAY_IMPORT_DOC = 'live/paypayImport'; // fields.data = アプリから取り込んだ PayPay CSV データセット群
+const HEALTH_DATA_DOC = 'live/healthData';     // fields.data = 睡眠データ（70 パイロット）
+const ESSAY_QUEUE_DOC = 'live/essayQueue';     // fields.data = 添削キュー（15）
+const OCR_DOCS_DOC = 'live/ocrDocs';           // fields.data = OCR 文書（93 パイロット）
 const PROFILE_DOC = 'appData/perfect_sync_data_2027'; // プロフィール本体
 
 // ---------- base64url ----------
@@ -221,6 +225,7 @@ function sendJson(res, status, obj) {
 module.exports = {
   FS_BASE, PUSH_SUBS_DOC, PUSH_STATE_DOC, WATCH_DOC,
   AI_USAGE_DOC, ERROR_LOG_DOC, BACKUPS_INDEX_DOC, HEALTH_DOC, MONEY_DOC, FEEDS_DOC, PROFILE_DOC,
+  PAYPAY_IMPORT_DOC, HEALTH_DATA_DOC, ESSAY_QUEUE_DOC, OCR_DOCS_DOC,
   b64uEncode, b64uDecode,
   fsGetDoc, fsSetField, fsGetJson, fsSetJson, fsDeleteDoc, fsSampleCollection,
   todayJst,

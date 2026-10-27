@@ -977,7 +977,8 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
 </div>
 
 <div id="page-analytics" class="page">
-  <div class="page-hdr"><div class="page-title">📊 学習分析</div><button class="btn btn-p btn-sm" onclick="openMockModal()">+ 模試記録</button></div>
+  <div class="page-hdr"><div class="page-title">📊 学習分析</div><span style="display:flex;gap:6px"><button class="btn btn-s btn-sm" onclick="document.getElementById('mock-photo-input').click()">📸 写真から取り込む</button><button class="btn btn-p btn-sm" onclick="openMockModal()">+ 模試記録</button></span></div>
+  <input type="file" id="mock-photo-input" accept="image/*" style="display:none" onchange="MockPhotoUI.onFile(event)">
 
   <div class="card">
     <div class="card-hdr"><span class="card-hdr-title">🏅 累計学習マイルストーン</span></div>
@@ -1015,6 +1016,13 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
     <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">🗓 週次AIレビュー（自動）</div><span class="expand-arrow">▼</span></div>
     <div class="expand-body open">
       <div id="server-weekly"><div class="empty">毎週月曜の朝に自動生成されます。</div></div>
+    </div>
+  </div>
+
+  <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">🌙 最近の睡眠（自動連携）</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body open">
+      <div id="health-sleep-c"><div class="empty">読み込み中…</div></div>
     </div>
   </div>
 
@@ -1100,6 +1108,23 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
     </div>
   </div>
 
+  <div class="expand-section">
+    <div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🔎 問題集OCRライブラリ（試験運用）</div><span class="expand-arrow">▼</span></div>
+    <div class="expand-body">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">問題集のページ写真をAIで文字化してクラウドに貯め、キーワードで検索できる試験機能です（教材データとは別管理）。</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input type="text" id="ocr-search" placeholder="キーワードで検索..." oninput="OcrUI.render()" style="flex:1">
+        <button class="btn btn-p btn-sm" onclick="document.getElementById('ocr-upload-input').click()">📷 ページをOCR</button>
+      </div>
+      <div class="g2" style="margin-bottom:10px">
+        <div><label class="lbl">科目・教材名</label><input type="text" id="ocr-subject" placeholder="例: 数学II・B 問題集"></div>
+        <div><label class="lbl">ページ</label><input type="text" id="ocr-page" placeholder="例: 42"></div>
+      </div>
+      <input type="file" id="ocr-upload-input" accept="image/*" style="display:none" onchange="OcrUI.onFile(event)">
+      <div id="ocr-list"><div class="empty">読み込み中…</div></div>
+    </div>
+  </div>
+
   <div class="expand-section"><div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📚 時間割</div><span class="expand-arrow">▼</span></div><div class="expand-body open">
     <p style="font-size:12px;color:var(--muted);margin-bottom:8px">コマをタップすると編集できます。空きコマ（＋）をタップすると授業を追加できます。</p>
     <div style="overflow-x:auto" id="tt-wrap"></div>
@@ -1130,6 +1155,17 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
     <div class="card-hdr"><span class="card-hdr-title" style="color:var(--accent)">♻️ 間違えた問題の「類題」自動生成</span></div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:10px">間違えた問題の写真を撮ると、AIが思考プロセスを分析して「全く新しい類題」を作り、チャットに出題してくれます。</p>
     <button class="btn btn-p btn-sm btn-full" onclick="document.getElementById('ruidai-upload-input').click()" id="btn-ruidai">📸 問題をスキャンして類題を作る</button>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">✍️ 英作文・小論文 添削キュー</span></div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">書いた文を投稿すると、その場で添削を試みます。うまくいかなかった分はキューに残り、毎朝自動で添削されます（アプリを閉じても処理されます）。</p>
+    <div class="g2" style="margin-bottom:8px">
+      <div><label class="lbl">種類</label><select id="essay-kind"><option value="english">✍️ 英作文</option><option value="essay">📝 小論文</option></select></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn btn-p btn-sm btn-full" onclick="EssayUI.submit()">✍️ 添削に出す</button></div>
+    </div>
+    <textarea id="essay-text" rows="6" placeholder="ここに英作文・小論文を書いてください（4000字まで）" style="width:100%"></textarea>
+    <div id="essay-list" style="margin-top:10px"><div class="empty">読み込み中…</div></div>
   </div>
 
   <div class="card">
@@ -1199,10 +1235,13 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
     <div class="chat-msgs" id="chat-msgs">
       <div class="cb cb-ai">こんにちは！君の全学習状況、成績、予定などはすべて把握しています。悩みや質問があればいつでも相談してね！📚</div>
     </div>
+    <div id="problem-draft-wrap" style="display:none;"></div>
     <div id="chat-file-preview-wrap" style="display:none;"></div>
     <input type="file" id="chat-file-input" accept="image/*,application/pdf" style="display:none" onchange="onChatFileSelected(event)">
+    <input type="file" id="problem-photo-input" accept="image/*" style="display:none" onchange="ProblemPhotoUI.onFile(event)">
     <div class="chat-input-row" style="align-items:flex-end;">
       <button class="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="画像・PDF を添付（画像は自動で縮小されます）">📎</button>
+      <button class="chat-attach-btn" onclick="document.getElementById('problem-photo-input').click()" title="問題の写真を読み取って、解説の下書きを作ります">📷</button>
       <button class="chat-attach-btn" onclick="tbAttachFromChat()" title="入力中の言葉で教材を探して、該当ページを添付します">📚</button>
       <button class="chat-attach-btn" id="chat-websearch-btn" onclick="toggleWebSearchMode()" title="Web検索：自動（必要そうなときだけ）">🔎</button>
       <button class="chat-attach-btn" id="chat-mic-btn" onclick="toggleVoiceInput()" title="音声で入力" style="display:none">🎤</button>
@@ -1235,7 +1274,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
       <div class="page-title">💰 お金</div>
       <div class="muted" id="money-updated" style="font-size:12px">マネーフォワード ME・2時間おき自動更新</div>
     </div>
-    <div style="display:flex;gap:6px;flex:none"><button type="button" class="btn btn-s btn-sm" id="money-mask-btn" onclick="MoneyUi.toggle()" aria-pressed="false">👁 金額オン</button><button class="btn btn-s btn-sm" onclick="renderMoney(true)">🔄 更新</button></div>
+    <div style="display:flex;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end"><button type="button" class="btn btn-s btn-sm" id="money-mask-btn" onclick="MoneyUi.toggle()" aria-pressed="false">👁 金額オン</button><button class="btn btn-s btn-sm" onclick="ExportUI.kakeiboCsv()">📥 家計簿CSV</button><button class="btn btn-s btn-sm" onclick="ExportUI.report()">📄 月次レポート</button><button class="btn btn-s btn-sm" onclick="renderMoney(true)">🔄 更新</button></div>
   </div>
   <div id="money-tabs" style="position:sticky;top:calc(var(--nav-h) + 20px);z-index:150;background:var(--bg);padding:8px 0 2px"></div>
   <div id="money-root"><div class="card"><div class="empty">お金のデータを読み込み中…</div></div></div>
@@ -1365,6 +1404,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
 <div class="ov" id="mo-sub" onclick="closeMo('mo-sub')"><div class="mo" onclick="event.stopPropagation()"><div class="mo-title" id="sub-form-title">➕ サブスクを追加</div><div class="form-row"><label class="lbl">名前</label><input type="text" id="sub-name" placeholder="例: Claude Pro"></div><div class="form-row"><label class="lbl">金額（円）</label><input type="number" id="sub-amount" min="0" step="1" placeholder="例: 3000"></div><div class="g2"><div class="form-row"><label class="lbl">周期</label><select id="sub-cycle"><option value="month">月額</option><option value="year">年額</option></select></div><div class="form-row"><label class="lbl">次回支払日（不明なら空欄）</label><input type="date" id="sub-next"></div></div><div class="form-row"><label class="lbl">メモ</label><input type="text" id="sub-memo" placeholder="任意"></div><div class="g2 mt12"><button class="btn btn-p" onclick="MoneySubs.saveFromForm()">保存</button><button class="btn btn-s" onclick="closeMo('mo-sub')">キャンセル</button></div></div></div>
 <div class="ov" id="mo-mock" onclick="closeMo('mo-mock')"><div class="mo" onclick="event.stopPropagation()">
 <div class="mo-title">📊 模試を記録</div>
+<div id="mock-ai-note" style="display:none;font-size:12px;line-height:1.7;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:10px"></div>
 <div class="form-row"><label class="lbl">模試名</label><input type="text" id="m-name" placeholder="例：駿台全国模試 第1回"></div>
 <div class="g2">
   <div class="form-row"><label class="lbl">受験日</label><input type="date" id="m-date"></div>
@@ -1606,6 +1646,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
 <script src="js/17-money.js"></script>
 <script src="js/18-push.js"></script>
 <script src="js/19-server.js"></script>
+<script src="js/20-wave3.js"></script>
 <script src="js/11-boot.js"></script>
 </body>
 </html>

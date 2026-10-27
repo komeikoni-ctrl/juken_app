@@ -10,7 +10,8 @@
 //   live/chatSummary に保存。
 // ・61 サブスク値上げ検知: 毎日チェックし、新規検知があれば
 //   live/alerts に記録＋ Push（詳細は detectSubsPriceAlerts）。
-// 手動実行: ?part=briefing|weekly|chat|subs|all（Cron 認可が前提）。
+// 手動実行: ?part=briefing|weekly|chat|subs|essays|all（Cron 認可が前提）。
+// ・15 添削キュー: 毎朝の便で pending を最大3件処理する。
 // 材料の実測（2026-10-27）: プロフィール本体・chatHistory・live/money・
 // live/aiUsage・live/admWatch は新鮮。tasks / dailyLogs のサブコレク
 // ションは 2026-09-20 で書き込みが止まっているため材料にしない。
@@ -293,6 +294,49 @@ async function runSubsCheck() {
   return { fresh: fresh.length, push };
 }
 
+// ---------- 添削キュー（15・第3弾で追加） ----------
+// アプリが live/essayQueue に積んだ投稿（status: 'pending'）を、
+// この Cron 便（毎朝6:30）で最大3件まで添削して 'done' にする。
+// アプリを開いている間の投稿はアプリ側が即時添削も試みるため、
+// ここは「アプリを閉じても処理される」ための受け皿。
+// プロンプトの文面はアプリ側（20-wave3.js の EssayUI.buildPrompt）と揃える。
+const ESSAY_QUEUE_DOC = 'live/essayQueue';
+const ESSAY_MAX_PER_RUN = 3;
+
+function essayPrompt(kind, text) {
+  return 'あなたは大学受験の指導者です。次の' + (kind === 'essay' ? '小論文' : '英作文') + 'を添削してください。\n'
+    + '出力は次の形式で、日本語で書いてください:\n'
+    + '【添削後の文】\n（添削した全文）\n'
+    + '【指摘】\n（文法・語彙・構成の問題点を箇条書きで最大5つ）\n'
+    + '【総評】\n（良い点と次に伸ばすべき点を2〜3文で）\n\n'
+    + '--- 添削対象 ---\n' + text;
+}
+
+async function runEssays(generate) {
+  const doc = await lib.fsGetJson(ESSAY_QUEUE_DOC, 'data', { items: [] });
+  const items = Array.isArray(doc.items) ? doc.items : [];
+  const pending = items.filter(i => i && i.status === 'pending').slice(0, ESSAY_MAX_PER_RUN);
+  if (!pending.length) return { processed: 0 };
+  let done = 0;
+  for (const item of pending) {
+    try {
+      const text = await generate(essayPrompt(item.kind, String(item.text || '').slice(0, 4000)), { maxOutputTokens: 3072 });
+      item.status = 'done';
+      item.result = text;
+      item.correctedAt = new Date().toISOString();
+      item.correctedBy = 'cron';
+      delete item.error;
+      done++;
+    } catch (e) {
+      item.error = String(e?.message || e).slice(0, 200);
+      item.attempts = (Number(item.attempts) || 0) + 1;
+      if (item.attempts >= 3) item.status = 'failed';
+    }
+  }
+  await lib.fsSetJson(ESSAY_QUEUE_DOC, 'data', { items: items.slice(0, 50), updatedAt: new Date().toISOString() });
+  return { processed: pending.length, done };
+}
+
 // ---------- ハンドラ ----------
 module.exports = async (req, res) => {
   try {
@@ -308,11 +352,13 @@ module.exports = async (req, res) => {
     const wantWeekly = part === 'all' || part === 'weekly' || (part === 'auto' && isMonday);
     const wantChat = part === 'all' || part === 'chat' || (part === 'auto' && isMonday);
     const wantSubs = part === 'all' || part === 'subs' || part === 'auto';
+    const wantEssays = part === 'all' || part === 'essays' || part === 'auto';
 
     if (wantBriefing) { try { out.parts.briefing = await runBriefing(today, generate); } catch (e) { out.parts.briefing = { error: String(e?.message || e) }; } }
     if (wantWeekly) { try { out.parts.weekly = await runWeekly(today, generate); } catch (e) { out.parts.weekly = { error: String(e?.message || e) }; } }
     if (wantChat) { try { out.parts.chat = await runChatSummary(generate); } catch (e) { out.parts.chat = { error: String(e?.message || e) }; } }
     if (wantSubs) { try { out.parts.subs = await runSubsCheck(); } catch (e) { out.parts.subs = { error: String(e?.message || e) }; } }
+    if (wantEssays) { try { out.parts.essays = await runEssays(generate); } catch (e) { out.parts.essays = { error: String(e?.message || e) }; } }
     return lib.sendJson(res, 200, out);
   } catch (e) {
     return lib.sendJson(res, 500, { error: 'internal error' });
@@ -320,4 +366,4 @@ module.exports = async (req, res) => {
 };
 
 module.exports.config = { maxDuration: 60 };
-module.exports.helpers = { gatherBriefingMaterials, briefingPrompt, gatherWeeklyMaterials, weeklyPrompt, runBriefing, runWeekly, runChatSummary, detectSubsPriceAlerts, matchChannel, runSubsCheck, BRIEFING_DOC, WEEKLY_DOC, CHAT_SUMMARY_DOC, ALERTS_DOC };
+module.exports.helpers = { gatherBriefingMaterials, briefingPrompt, gatherWeeklyMaterials, weeklyPrompt, runBriefing, runWeekly, runChatSummary, detectSubsPriceAlerts, matchChannel, runSubsCheck, essayPrompt, runEssays, BRIEFING_DOC, WEEKLY_DOC, CHAT_SUMMARY_DOC, ALERTS_DOC, ESSAY_QUEUE_DOC };
