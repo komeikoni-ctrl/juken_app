@@ -884,6 +884,57 @@ SelfTest.add('見た目のスタイル: ぷっくりポップの切替', () => {
   }
 });
 
+SelfTest.add('見た目のスタイル: すっきりモダンが増えて既存2つと選択が保持される', () => {
+  const html = document.documentElement;
+  const before = html.getAttribute('data-style');
+  try {
+    assertEq(UI_STYLES.length, 3, 'スタイルの選択肢は3つ');
+    ['glass', 'pop', 'modern'].forEach(id => assert(UI_STYLES.some(x => x.id === id), `スタイル ${id} があること`));
+    applyUiStyle('modern');
+    assertEq(html.getAttribute('data-style'), 'modern', 'すっきりモダンで data-style="modern" になること');
+    applyUiStyle('pop');
+    assertEq(html.getAttribute('data-style'), 'pop', 'ぷっくりポップも従来どおり選べること');
+    applyUiStyle('glass');
+    assert(!html.hasAttribute('data-style'), 'いつもの見た目では属性を外すこと');
+  } finally {
+    applyUiStyle(before || S.userStyle);
+  }
+});
+
+SelfTest.add('ナビ: 下部タブバーとその他シートから全ページへ遷移できる', () => {
+  const bar = document.querySelector('.tabbar');
+  assert(!!bar, '下部タブバーがあること');
+  const prim = ['home', 'timer', 'calendar', 'apply', 'aicoach'];
+  prim.forEach(id => assert(!!bar.querySelector(`.nav-btn[onclick*="'${id}'"]`), `タブバーに ${id} のボタンがあること`));
+  const moreBtn = document.getElementById('tab-more-btn');
+  assert(!!moreBtn, 'その他ボタンがあること');
+  const sheet = document.getElementById('mo-more');
+  assert(!!sheet, 'その他シートがあること');
+  const sec = ['uni', 'analytics', 'sunzemi', 'money', 'settings'];
+  sec.forEach(id => assert(!!sheet.querySelector(`[onclick*="showPage('${id}')"]`), `その他シートに ${id} への導線があること`));
+  // 全ページへ実際に切り替えて、表示ページが合うこと（描画側で例外が出ても表示切替までは済んでいる）
+  const beforePage = S.currentPage;
+  [...prim, ...sec].forEach(id => {
+    try { showPage(id); } catch (e) { /* 描画の例外はここでは見ない */ }
+    assert(document.getElementById('page-' + id).classList.contains('active'), `${id} ページが表示されること`);
+    assertEq(S.currentPage, id, `現在ページが ${id} になること`);
+  });
+  try { showPage(beforePage || 'home'); } catch (e) {}
+});
+
+SelfTest.add('ホーム: ベントグリッドの全ブロックが揃い、グリッドCSSがある', () => {
+  ['today-ring-card', 'home-countdown', 'home-stats', 'home-subj-prog', 'home-uni-prob', 'home-tasks', 'home-ach', 'live-band'].forEach(id => {
+    assert(!!document.getElementById(id), `ホームに #${id} があること`);
+  });
+  const halves = document.querySelectorAll('#page-home .card.bento-half');
+  assertEq(halves.length, 2, '半幅タイル（得点目標・合可能性）が2つあること');
+  const css = Array.from(document.querySelectorAll('style')).map(el => el.textContent).join('\n');
+  assert(css.includes('#page-home.active') && css.includes('grid-template-columns:1fr 1fr'), 'ホームのベントグリッドCSSがあること');
+  assert(css.includes('.tabbar{position:fixed'), 'タブバーが下部固定のCSSであること');
+  assert(css.includes('.seg-row'), 'お金サブタブのセグメントCSSがあること');
+  assert(css.includes('[data-style="modern"]'), 'すっきりモダンのCSSスコープがあること');
+});
+
 SelfTest.add('モデル選択: 既定値と未知IDの扱い', () => {
   assert(AVAILABLE_MODELS.includes(DEFAULT_MODEL), '既定モデルが一覧に含まれること');
   assert(!AVAILABLE_MODELS.includes('gemini-2.0-flash'), '提供終了モデルが一覧にないこと');
