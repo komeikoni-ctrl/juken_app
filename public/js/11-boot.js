@@ -1372,8 +1372,8 @@ SelfTest.add('プッシュ通知: VAPID公開鍵と購読データの形', () =>
 SelfTest.add('入試情報ウォッチ: 未読の抽出とカード生成', () => {
   const ups = [
     { id: '1', uni: '同志社大学', url: 'https://www.doshisha.ac.jp/admission/', at: '2026-12-01T00:00:00Z', snippet: '出願要項を公開', read: false },
-    { id: '2', uni: '立命館大学', url: 'https://www.ritsumei.ac.jp/admission/', at: '2026-12-02T00:00:00Z', snippet: '', read: true },
-    { id: '3', uni: '<悪意>', url: 'https://www.kindai.ac.jp/admission/', at: '2026-12-03T00:00:00Z', snippet: 'x', read: false }
+    { id: '2', uni: '立命館大学', url: 'https://admission.ritsumei.ac.jp/', at: '2026-12-02T00:00:00Z', snippet: '', read: true },
+    { id: '3', uni: '<悪意>', url: 'https://kindai.jp/', at: '2026-12-03T00:00:00Z', snippet: 'x', read: false }
   ];
   assertEq(AdmWatchUI._unread(ups).map(u => u.id), ['1', '3'], '未読だけを順序そのままに');
   assertEq(AdmWatchUI._unread(null), [], 'null でも空配列');
