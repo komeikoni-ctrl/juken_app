@@ -785,6 +785,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
   </div>
   
   <div id="home-evening-alert" style="display:none; margin-bottom:14px;"></div>
+  <div id="home-adm-watch" style="display:none; margin-bottom:14px;"></div>
   <div id="live-band" style="margin-bottom:14px;"></div>
 
   <div id="today-ring-card" class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
@@ -1280,6 +1281,22 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
   </div>
 
   <div class="expand-section">
+    <div class="expand-hdr open" onclick="toggleExpand(this)">
+      <div class="expand-title">🔔 プッシュ通知（Vercel版のみ）</div>
+      <span class="expand-arrow">▼</span>
+    </div>
+    <div class="expand-body open">
+      <p style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:10px">アプリを閉じていても、出願の開始・締切（3日前・前日・当日）と、志望校の入試ページの更新をスマホへ通知します。iPhoneでは「ホーム画面に追加」したアプリから有効化してください。</p>
+      <div id="push-status" style="font-size:13px;line-height:1.7;margin-bottom:10px">状態を確認中…</div>
+      <div class="g3">
+        <button class="btn btn-p btn-sm" id="push-enable-btn" onclick="enablePush()">通知を有効にする</button>
+        <button class="btn btn-s btn-sm" id="push-test-btn" onclick="testPush()" disabled>テスト通知を送る</button>
+        <button class="btn btn-s btn-sm" id="push-disable-btn" onclick="disablePush()" disabled>無効にする</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="expand-section">
     <div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🧹 科目名の統合</div><span class="expand-arrow">▼</span></div>
     <div class="expand-body">
       <p style="font-size:11px;color:var(--muted);margin-bottom:10px">同じ授業が違う名前で記録されていると、学習時間が分かれて集計されます。時間割にない科目名があればここに出るので、対応する授業に統合できます。</p>
@@ -1560,6 +1577,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
 <script src="js/15-past-exams.js"></script>
 <script src="js/16-live.js"></script>
 <script src="js/17-money.js"></script>
+<script src="js/18-push.js"></script>
 <script src="js/11-boot.js"></script>
 </body>
 </html>
