@@ -27,6 +27,54 @@ const ErrorLog = {
 };
 window.ErrorLog = ErrorLog;
 
+// ------------------------------------------------------------
+// 📡 エラーの自動送信（Vercel版のみ）
+// エラーを端末に残すだけでなく、サーバー（/api/error-log）にも
+// 送って「どの端末でも起きている問題」を後から確認できるように
+// する。送るのはメッセージ・発生箇所・バージョン・ページ名だけ
+// （入力内容や個人データは送らない）。GitHub Pages には受け口が
+// 無いので送らない。送信は控えめに: 1回の起動で最大10件、同じ
+// 内容は1回だけ。
+// ------------------------------------------------------------
+const ErrorReport = {
+  MAX_PER_SESSION: 10,
+  _sent: 0,
+  _seen: new Set(),
+  enabled: () => location.protocol === 'https:' && !location.hostname.endsWith('github.io'),
+  // 送信する形に整える（純粋関数・テスト対象）。長さ制限はサーバー側でも担保する
+  build: (entry) => ({
+    type: String(entry?.type || 'error').slice(0, 30),
+    message: String(entry?.message || '').slice(0, 300),
+    source: String(entry?.source || '').slice(0, 200),
+    version: String(APP_VERSION || '').slice(0, 20),
+    page: String(entry?.page || '').slice(0, 40)
+  }),
+  send: (entry) => {
+    try {
+      if (!ErrorReport.enabled()) return;
+      if (ErrorReport._sent >= ErrorReport.MAX_PER_SESSION) return;
+      const body = ErrorReport.build(entry);
+      if (!body.message) return;
+      const key = body.type + '|' + body.message;
+      if (ErrorReport._seen.has(key)) return;
+      ErrorReport._seen.add(key);
+      ErrorReport._sent++;
+      const json = JSON.stringify(body);
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/error-log', new Blob([json], { type: 'application/json' }));
+      } else {
+        fetch('/api/error-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json, keepalive: true }).catch(() => {});
+      }
+    } catch (e) { /* 送信の失敗はアプリに影響させない */ }
+  }
+};
+window.ErrorReport = ErrorReport;
+// ErrorLog.push の末尾で送るよう差し込む（既存の呼び出し側は無改修）
+{
+  const _pushOrig = ErrorLog.push;
+  ErrorLog.push = (entry) => { _pushOrig(entry); ErrorReport.send({ ...entry, page: (typeof S !== 'undefined' && S?.currentPage) || '' }); };
+}
+
 window.addEventListener('error', (ev) => {
   ErrorLog.push({ type: 'error', message: ev.message || String(ev.error), source: `${ev.filename}:${ev.lineno}:${ev.colno}` });
 });
@@ -1383,6 +1431,79 @@ SelfTest.add('入試情報ウォッチ: 未読の抽出とカード生成', () =
   assert(!html.includes('立命館大学'), '既読は出さない');
   assert(html.includes('&lt;悪意&gt;'), '大学名はエスケープされる');
   assertEq(AdmWatchUI._cardHtml(ups.map(u => ({ ...u, read: true }))), '', '全部既読ならカードなし');
+});
+
+SelfTest.add('AIモデル: おまかせ自動の振り分けと手動の尊重', () => {
+  const savedMode = localStorage.getItem('jukenAiModelMode');
+  const savedModel = localStorage.getItem('geminiModel');
+  try {
+    // 自動: 軽い処理は Lite、本生成は既定モデル。高額モデルは自動で選ばれない
+    AiModelMode.set('auto');
+    assertEq(AiModelMode.autoModelFor('fast'), 'gemini-3.5-flash-lite', 'fast は最安モデルへ');
+    assertEq(AiModelMode.autoModelFor('normal'), DEFAULT_MODEL, 'normal は既定モデル');
+    assertEq(AiModelMode.autoModelFor('deep'), DEFAULT_MODEL, 'deep も既定モデル（Argonに化けない）');
+    assertEq(AiModelMode.resolve('fast'), 'gemini-3.5-flash-lite', '自動モードで fast を解決');
+    assertEq(AiModelMode.resolve('normal'), DEFAULT_MODEL, '自動モードで normal を解決');
+    // 手動: 保存したモデル（Argon 含む）を常に尊重する
+    AiModelMode.set('manual');
+    localStorage.setItem('geminiModel', 'gemini-4-argon');
+    const sel = document.getElementById('set-model');
+    if (sel) sel.value = 'gemini-3.8-flash'; // 選択欄が別でも保存値が効く状況を作らないよう揃える対象外にする
+    assertEq(AiModelMode.resolve('fast'), AiService.getModel(), '手動モードは getModel と一致');
+    assertEq(AiModelMode.resolve('normal'), AiService.getModel(), '手動モードは用途で変えない');
+  } finally {
+    if (savedMode == null) localStorage.removeItem('jukenAiModelMode'); else localStorage.setItem('jukenAiModelMode', savedMode);
+    if (savedModel == null) localStorage.removeItem('geminiModel'); else localStorage.setItem('geminiModel', savedModel);
+    const sel = document.getElementById('set-model');
+    if (sel && savedModel) sel.value = savedModel;
+  }
+});
+
+SelfTest.add('AIコスト: 単価の期間切替と概算計算', () => {
+  // Argon は 2026-11-30 まで $2/$10、12月から $4/$20
+  assertEq(AiCost.priceFor('gemini-4-argon', '2026-11-30').input, 2, 'Argon 11月末までの入力単価');
+  assertEq(AiCost.priceFor('gemini-4-argon', '2026-12-01').input, 4, 'Argon 12月からの入力単価');
+  // 3.8 Flash は 2026-12-31 まで $0.75/$3.75、翌年から $1.50/$7.50
+  assertEq(AiCost.priceFor('gemini-3.8-flash', '2026-12-31').output, 3.75, 'Flash 年内の出力単価');
+  assertEq(AiCost.priceFor('gemini-3.8-flash', '2027-01-01').output, 7.5, 'Flash 年明けの出力単価');
+  // 100万入力 + 100万出力（Flash・年内）= (0.75+3.75)ドル × 155円 = 697.5円
+  const yen = AiCost.estimateYen('gemini-3.8-flash', 1000000, 1000000, '2026-10-27');
+  assert(Math.abs(yen - 697.5) < 0.01, '概算コストの計算が合う（実際: ' + yen + '）');
+  assertEq(AiCost.estimateYen('gemini-3.8-flash', 0, 0, '2026-10-27'), 0, 'トークン0なら0円');
+});
+
+SelfTest.add('AI利用量: 月次集計とモデル別内訳', () => {
+  const usage = { days: {
+    '2026-10-01': { 'gemini-3.8-flash': { calls: 2, in: 100, out: 50 } },
+    '2026-10-31': { 'gemini-3.8-flash': { calls: 1, in: 10, out: 5 }, 'gemini-4-argon': { calls: 1, in: 1000, out: 2000 } },
+    '2026-09-30': { 'gemini-3.8-flash': { calls: 9, in: 999, out: 999 } }
+  } };
+  const t = AiUsageUI._monthTotals(usage, '2026-10');
+  assertEq(t.calls, 4, '対象月の回数だけ数える');
+  assertEq(t.in, 1110, '入力トークンの合計');
+  assertEq(t.out, 2055, '出力トークンの合計');
+  assertEq(t.byModel['gemini-4-argon'].calls, 1, 'モデル別内訳');
+  assertEq(AiUsageUI._monthTotals(null, '2026-10').calls, 0, 'null でも壊れない');
+  const yen = AiUsageUI._monthCostYen(t, '2026-10');
+  assert(yen > 0, '概算コストが正の値になる');
+});
+
+SelfTest.add('エラー自動送信: 送信ペイロードの整形', () => {
+  const long = 'x'.repeat(500);
+  const body = ErrorReport.build({ type: 'error', message: long, source: long, page: 'home' });
+  assertEq(body.message.length, 300, 'メッセージは300字で切る');
+  assertEq(body.source.length, 200, '発生箇所は200字で切る');
+  assertEq(body.version, APP_VERSION, 'バージョンが入る');
+  assertEq(Object.keys(body).sort(), ['message', 'page', 'source', 'type', 'version'], '送る項目はこの5つだけ（入力内容は含めない）');
+});
+
+SelfTest.add('健全性カード: 異常があるときだけ出る', () => {
+  assertEq(ServerDiagUI._healthCardHtml(null), '', '未取得なら出さない');
+  assertEq(ServerDiagUI._healthCardHtml({ ok: true, issues: [] }), '', '正常なら出さない');
+  const html = ServerDiagUI._healthCardHtml({ ok: false, issues: [{ key: 'money-stale', msg: 'お金タブの自動更新が止まっています' }] });
+  assert(html.includes('お金タブの自動更新が止まっています'), '異常の文言が出る');
+  const evil = ServerDiagUI._healthCardHtml({ ok: false, issues: [{ key: 'x', msg: '<script>悪意</script>' }] });
+  assert(evil.includes('&lt;script&gt;'), '文言はエスケープされる');
 });
 
 window.runSelfTest = () => {
