@@ -1,0 +1,9 @@
+{
+  "crons": [
+    { "path": "/api/cron-notify", "schedule": "0 23 * * *" },
+    { "path": "/api/cron-watch", "schedule": "5 23 * * *" }
+  ],
+  "headers": [
+    { "source": "/js/version.js", "headers": [{ "key": "x-root-config-probe", "value": "1" }] }
+  ]
+}
