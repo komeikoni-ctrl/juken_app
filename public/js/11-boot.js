@@ -1367,6 +1367,7 @@ SelfTest.add('プッシュ通知: VAPID公開鍵と購読データの形', () =>
   const fakeSub = { endpoint: 'https://push.example/abc', toJSON: () => ({ endpoint: 'https://push.example/abc', keys: { p256dh: 'PK', auth: 'AK' } }) };
   assertEq(PushUI._subPayload(fakeSub), { endpoint: 'https://push.example/abc', keys: { p256dh: 'PK', auth: 'AK' } }, '購読→保存形式の変換');
   assertEq(typeof PushUI.isSupported(), 'boolean', '対応判定が例外なく真偽値を返す');
+  assertEq(typeof window.togglePush, 'function', 'オン／オフのトグル用ハンドラがあること');
 });
 
 SelfTest.add('入試情報ウォッチ: 未読の抽出とカード生成', () => {
