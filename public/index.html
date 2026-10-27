@@ -662,6 +662,7 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
   <button class="nav-btn" onclick="showPage('analytics',this)"><span class="nav-icon">📊</span>分析</button>
   <button class="nav-btn" onclick="showPage('sunzemi',this)"><span class="nav-icon">🏫</span>駿台<span class="nav-badge" id="nb-sunzemi" style="display:none"></span></button>
   <button class="nav-btn" onclick="showPage('aicoach',this)"><span class="nav-icon">👨‍🏫</span>AIコーチ</button>
+  <button class="nav-btn" onclick="showPage('money',this)"><span class="nav-icon">💰</span>お金</button>
   <button class="nav-btn" onclick="showPage('settings',this)"><span class="nav-icon">⚙️</span>設定</button>
 </nav>
 
@@ -1108,6 +1109,17 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
 </div>
 
 
+<div id="page-money" class="page">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title">💰 お金</div>
+      <div class="muted" id="money-updated" style="font-size:12px">マネーフォワード ME・2時間おき自動更新</div>
+    </div>
+    <button class="btn btn-s btn-sm" onclick="renderMoney(true)">🔄 更新</button>
+  </div>
+  <div id="money-root"><div class="card"><div class="empty">お金のデータを読み込み中…</div></div></div>
+</div>
+
   <div id="page-settings" class="page">
   <div class="page-hdr"><div class="page-title">⚙️ 設定</div></div>
 
@@ -1442,6 +1454,7 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
 <script src="js/14-kyotsu.js"></script>
 <script src="js/15-past-exams.js"></script>
 <script src="js/16-live.js"></script>
+<script src="js/17-money.js"></script>
 <script src="js/11-boot.js"></script>
 </body>
 </html>
