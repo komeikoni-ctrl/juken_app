@@ -185,7 +185,8 @@ const MoneyTab = {
     { id: 'securities', label: '証券' },
     { id: 'expenses', label: '支出' },
     { id: 'paypay', label: 'PayPay' },
-    { id: 'kakeibo', label: '家計簿' }
+    { id: 'kakeibo', label: '家計簿' },
+    { id: 'subs', label: 'サブスク' }
   ],
   set: (id) => {
     if (!MoneyTab.TABS.some(t => t.id === id)) return;
@@ -295,6 +296,7 @@ const MoneyView = {
 
 // お金ページの描画。showPage('money') から呼ばれる。force=true でキャッシュを待たず再取得する
 async function renderMoney(force) {
+  MoneySubs.ensureSeed();
   const root = document.getElementById('money-root');
   const upd = document.getElementById('money-updated');
   if (!root) return;
@@ -354,6 +356,142 @@ MoneyView.tabsHtml = () => {
   const cur = MoneyTab.current;
   const btn = (t) => MoneyView.chipBtn(t.label, `MoneyTab.set('${t.id}')`, t.id === cur);
   return MoneyView.chipRow(MoneyTab.TABS.map(btn).join(''));
+};
+
+
+// ============================================================
+// サブスク管理（お金ページのサブタブ）
+// マスタデータは同期データ S.moneySubs（プロフィール側）に持つ。live/money（表示専用の
+// ライブデータ）とは混ぜない。形: { seeded:true, items:[{id,name,amount,cycle,nextDate,memo}] }
+// cycle は 'month'（月額）か 'year'（年額）。nextDate は 'YYYY-MM-DD' か ''（不明）。
+// ============================================================
+const MoneySubs = {
+  seedItems: () => ([
+    { id: generateId(), name: 'Muse Power', amount: 3499, cycle: 'month', nextDate: '', memo: '' },
+    { id: generateId(), name: 'Claude Pro', amount: 3000, cycle: 'month', nextDate: '', memo: '約3,000円' },
+    { id: generateId(), name: 'Google AI Pro', amount: 2900, cycle: 'month', nextDate: '', memo: '2026-11-21から Google AI Plus ¥1,450/月に変更予定' }
+  ]),
+  // S.moneySubs が未定義（null）のときだけ1回だけ初期投入する。投入済みの印（seeded）を
+  // 同じデータ内に持つので、項目を全部削除しても初期データが復活することはない
+  ensureSeed: (persist = true) => {
+    if (typeof S === 'undefined' || S.moneySubs != null) return false;
+    S.moneySubs = { seeded: true, items: MoneySubs.seedItems() };
+    if (persist) MoneySubs.persist();
+    return true;
+  },
+  items: () => (typeof S !== 'undefined' && S.moneySubs && Array.isArray(S.moneySubs.items)) ? S.moneySubs.items : [],
+  persist: () => {
+    try { if (typeof lsSave === 'function') lsSave(); } catch (e) {}
+    try { if (typeof DbService !== 'undefined' && DbService.setMainProfile) DbService.setMainProfile(); } catch (e) {}
+  },
+  _normalize: (item) => ({
+    name: String(item?.name || '').trim(),
+    amount: Math.max(0, Math.round(Number(item?.amount) || 0)),
+    cycle: item?.cycle === 'year' ? 'year' : 'month',
+    nextDate: /^\d{4}-\d{2}-\d{2}$/.test(String(item?.nextDate || '')) ? String(item.nextDate) : '',
+    memo: String(item?.memo || '')
+  }),
+  add: (item, persist = true) => {
+    MoneySubs.ensureSeed(false);
+    if (!S.moneySubs || typeof S.moneySubs !== 'object') S.moneySubs = { seeded: true, items: [] };
+    if (!Array.isArray(S.moneySubs.items)) S.moneySubs.items = [];
+    const it = { id: generateId(), ...MoneySubs._normalize(item) };
+    S.moneySubs.items.push(it);
+    if (persist) MoneySubs.persist();
+    return it;
+  },
+  update: (id, item, persist = true) => {
+    const it = MoneySubs.items().find(x => x.id === id);
+    if (!it) return false;
+    Object.assign(it, MoneySubs._normalize(item));
+    if (persist) MoneySubs.persist();
+    return true;
+  },
+  remove: (id, persist = true) => {
+    if (!S.moneySubs || !Array.isArray(S.moneySubs.items)) return false;
+    const before = S.moneySubs.items.length;
+    S.moneySubs.items = S.moneySubs.items.filter(x => x.id !== id);
+    if (persist) MoneySubs.persist();
+    return S.moneySubs.items.length !== before;
+  },
+  // 月額換算・年額換算の合計
+  totals: (items) => {
+    let monthly = 0, yearly = 0;
+    (Array.isArray(items) ? items : []).forEach(x => {
+      const a = Number(x?.amount) || 0;
+      if (x?.cycle === 'year') { monthly += a / 12; yearly += a; }
+      else { monthly += a; yearly += a * 12; }
+    });
+    return { monthlyEq: Math.round(monthly), yearlyEq: Math.round(yearly) };
+  },
+  // 定期支払いの候補: 家計簿明細で「同じタイトル・同じ金額の支出」が2か月以上あるもの。
+  // すでに同じ名前で登録済みのものは除く
+  detectCandidates: (data, items) => {
+    const months = data?.kakeibo?.months;
+    if (!months || typeof months !== 'object') return [];
+    const registered = new Set((Array.isArray(items) ? items : []).map(x => String(x?.name || '')));
+    const byKey = {};
+    Object.entries(months).forEach(([ym, list]) => {
+      (Array.isArray(list) ? list : []).forEach(x => {
+        if (!x || x.io === 'in') return;
+        const amt = Number(x.amount) || 0;
+        if (!x.title || amt <= 0) return;
+        const key = `${x.title}|${amt}`;
+        if (!byKey[key]) byKey[key] = { title: x.title, amount: amt, months: new Set(), cat: x.cat || '' };
+        byKey[key].months.add(ym);
+      });
+    });
+    return Object.values(byKey)
+      .filter(c => c.months.size >= 2 && !registered.has(c.title))
+      .map(c => ({ title: c.title, amount: c.amount, monthCount: c.months.size, cat: c.cat }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 8);
+  },
+  // ---- フォーム（モーダル mo-sub） ----
+  editingId: null,
+  _cands: [],
+  _fill: (item) => {
+    document.getElementById('sub-name').value = item?.name || '';
+    document.getElementById('sub-amount').value = item?.amount ?? '';
+    document.getElementById('sub-cycle').value = item?.cycle === 'year' ? 'year' : 'month';
+    document.getElementById('sub-next').value = item?.nextDate || '';
+    document.getElementById('sub-memo').value = item?.memo || '';
+    document.getElementById('sub-form-title').textContent = MoneySubs.editingId ? '✏️ サブスクを編集' : '➕ サブスクを追加';
+  },
+  openNew: (prefill) => { MoneySubs.editingId = null; MoneySubs._fill(prefill || null); showMo('mo-sub'); },
+  openEdit: (id) => {
+    const it = MoneySubs.items().find(x => x.id === id);
+    if (!it) return;
+    MoneySubs.editingId = id;
+    MoneySubs._fill(it);
+    showMo('mo-sub');
+  },
+  openCandidate: (i) => {
+    const c = MoneySubs._cands[i];
+    if (!c) return;
+    MoneySubs.openNew({ name: c.title, amount: c.amount, cycle: 'month', nextDate: '', memo: c.cat ? `候補から追加（${c.cat}）` : '候補から追加' });
+  },
+  saveFromForm: () => {
+    const item = {
+      name: document.getElementById('sub-name').value,
+      amount: document.getElementById('sub-amount').value,
+      cycle: document.getElementById('sub-cycle').value,
+      nextDate: document.getElementById('sub-next').value,
+      memo: document.getElementById('sub-memo').value
+    };
+    if (!item.name.trim() || !(Number(item.amount) > 0)) { showToast('名前と金額（0より大きい額）を入力してください', 'error'); return; }
+    if (MoneySubs.editingId) MoneySubs.update(MoneySubs.editingId, item);
+    else MoneySubs.add(item);
+    MoneySubs.editingId = null;
+    closeMo('mo-sub');
+    rerenderMoneyRoot();
+    showToast('サブスクを保存しました');
+  },
+  askRemove: (id) => {
+    const it = MoneySubs.items().find(x => x.id === id);
+    if (!it) return;
+    showConfirm('サブスクを削除', `「${it.name}」を削除しますか？`, '削除する', () => { MoneySubs.remove(id); rerenderMoneyRoot(); });
+  }
 };
 
 // セクションごとの描画（サブタブで切り分ける単位）。各セクションの中身は従来の全表示と同一
@@ -463,6 +601,57 @@ MoneyView.sections = (data) => {
       `<div class="muted" style="font-size:11px;margin-top:8px">銀行（楽天銀行・PayPay銀行）の明細と PayPay の支払い・送金を合わせたものです。PayPayへのチャージは、二重に数えないため明細に入れていません。</div></div>`
     : '';
 
+  // ⑥ サブスク（S.moneySubs が正。候補は家計簿データから検出）
+  const subsItems = MoneySubs.items().slice().sort((a, b) => {
+    if (a.nextDate && b.nextDate) return a.nextDate < b.nextDate ? -1 : 1;
+    if (a.nextDate) return -1;
+    if (b.nextDate) return 1;
+    return (b.amount || 0) - (a.amount || 0);
+  });
+  const st = MoneySubs.totals(subsItems);
+  const cands = MoneySubs.detectCandidates(data, subsItems);
+  MoneySubs._cands = cands;
+  const subRow = (x) => {
+    const dLeft = x.nextDate ? DateManager.daysBetween(x.nextDate) : null;
+    const nextLabel = x.nextDate
+      ? `${esc(x.nextDate.replace(/-/g, '/'))}（${dLeft > 0 ? `あと${dLeft}日` : dLeft === 0 ? '今日' : `${-dLeft}日過ぎ`}）`
+      : '—';
+    return `<div class="row" style="align-items:flex-start">
+      <div class="row-title" style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700">${esc(x.name)}</div>
+        <div class="muted" style="font-size:11px">次回支払日 ${nextLabel}${x.memo ? ` ・ ${esc(x.memo)}` : ''}</div>
+      </div>
+      <div style="text-align:right;flex:none;margin-left:10px">
+        <div style="font-size:14px;font-weight:800">${MoneyView.yen(x.amount)}<span class="muted" style="font-size:11px;font-weight:600">/${x.cycle === 'year' ? '年' : '月'}</span></div>
+        <div style="margin-top:4px;display:flex;gap:4px;justify-content:flex-end">
+          <button type="button" class="btn btn-sm btn-s" onclick="MoneySubs.openEdit('${x.id}')" style="font-size:11px;padding:4px 10px">編集</button>
+          <button type="button" class="btn btn-sm btn-s" onclick="MoneySubs.askRemove('${x.id}')" style="font-size:11px;padding:4px 10px">削除</button>
+        </div>
+      </div>
+    </div>`;
+  };
+  out.subs = `<div class="card"><div class="card-hdr"><span class="card-hdr-title">🔁 サブスク</span><button type="button" class="btn btn-p btn-sm" onclick="MoneySubs.openNew()">＋ 追加</button></div>
+    <div class="g2" style="margin-bottom:6px">
+      <div class="stat"><div class="stat-v" style="font-size:19px">${MoneyView.yen(st.monthlyEq)}</div><div class="stat-l">月額換算の合計</div></div>
+      <div class="stat"><div class="stat-v" style="font-size:19px">${MoneyView.yen(st.yearlyEq)}</div><div class="stat-l">年額換算の合計</div></div>
+    </div>` +
+    (subsItems.length ? subsItems.map(subRow).join('') : '<div class="empty">登録されているサブスクはまだありません。「＋ 追加」から登録できます。</div>') +
+    `</div>` +
+    (cands.length
+      ? `<div class="card"><div class="card-hdr"><span class="card-hdr-title">💡 定期支払いの候補</span></div>` +
+        cands.map((c, i) => `<div class="row" style="align-items:flex-start">
+          <div class="row-title" style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700">${esc(c.title)}</div>
+            <div class="muted" style="font-size:11px">${c.monthCount}か月連続で同じ金額の支出${c.cat ? ` ・ ${esc(c.cat)}` : ''}</div>
+          </div>
+          <div style="text-align:right;flex:none;margin-left:10px">
+            <div style="font-size:14px;font-weight:800">${MoneyView.yen(c.amount)}</div>
+            <button type="button" class="btn btn-sm btn-s" onclick="MoneySubs.openCandidate(${i})" style="font-size:11px;padding:4px 10px;margin-top:4px">＋ 追加</button>
+          </div>
+        </div>`).join('') +
+        `<div class="muted" style="font-size:11px;margin-top:8px">家計簿の明細から、同じ名前・同じ金額の支出が2か月以上続いているものを候補として出しています。追加すると金額と名前がフォームに入ります（次回支払日は未入力です）。</div></div>`
+      : '');
+
   // ⑤ PayPay（CSVスナップショット）
   const pp = data.paypay;
   const ppMonths = (pp && Array.isArray(pp.monthlyPayments)) ? pp.monthlyPayments.slice(-6) : [];
@@ -490,7 +679,8 @@ MoneyView.html = (data, tab) => {
     securities: ['securities'],
     expenses: ['expenses'],
     paypay: ['paypay'],
-    kakeibo: ['kakeibo']
+    kakeibo: ['kakeibo'],
+    subs: ['subs']
   }[cur] || ['total', 'accounts', 'securities', 'expenses', 'kakeibo', 'paypay'];
   const body = order.map(k => s[k]).join('');
   return body || '<div class="card"><div class="empty">データがまだありません</div></div>';
