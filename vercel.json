@@ -1,13 +1,55 @@
 {
-  "outputDirectory": "public",
-  "crons": [
-    {
-      "path": "/api/cron-notify",
-      "schedule": "0 23 * * *"
-    },
-    {
-      "path": "/api/cron-watch",
-      "schedule": "5 23 * * *"
-    }
-  ]
+    "crons": [
+        {
+            "path": "/api/cron-backup",
+            "schedule": "30 22 * * *"
+        },
+        {
+            "path": "/api/cron-notify",
+            "schedule": "0 23 * * *"
+        },
+        {
+            "path": "/api/cron-watch",
+            "schedule": "5 23 * * *"
+        }
+    ],
+    "headers": [
+        {
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=0, must-revalidate"
+                }
+            ],
+            "source": "/sw.js"
+        },
+        {
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=0, must-revalidate"
+                }
+            ],
+            "source": "/js/version.js"
+        },
+        {
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=2592000"
+                }
+            ],
+            "source": "/icon.png"
+        },
+        {
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=86400, must-revalidate"
+                }
+            ],
+            "source": "/manifest.json"
+        }
+    ],
+    "outputDirectory": "public"
 }
