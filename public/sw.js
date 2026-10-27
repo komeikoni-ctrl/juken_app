@@ -37,6 +37,7 @@ const PRECACHE = [
   './js/16-live.js',
   './js/17-money.js',
   './js/18-push.js',
+  './js/19-server.js',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js',
   'https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js',
@@ -52,8 +53,10 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
+    // このオリジンはこのアプリ専用なので、現行以外のキャッシュは旧版・
+    // 旧名称のものも含めて全部消す（古い版の残骸が残り続けないように）
     const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k !== CACHE && k.startsWith('juken-')).map(k => caches.delete(k)));
+    await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
     await self.clients.claim();
   })());
 });
