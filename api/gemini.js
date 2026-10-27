@@ -16,6 +16,8 @@
 // 本命の防御は Google 側の API キー制限とプリペイド残高の上限。
 // ============================================================
 
+const lib = require('./_pushlib');
+
 // アプリ側 AVAILABLE_MODELS（public/js/03-ai.js）と揃えること
 const ALLOWED_MODELS = ['gemini-4-argon', 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-pro-preview', 'gemini-2.5-flash'];
 // Vercel Functions のリクエスト上限（4.5MB）に収める
@@ -49,6 +51,64 @@ function sendJson(res, status, obj) {
 
 function proxyError(res, status, code, message) {
   sendJson(res, status, { error: { message, status: code, proxy: true } });
+}
+
+// ============================================================
+// AI利用量の集計（live/aiUsage）
+// ------------------------------------------------------------
+// 成功した生成（HTTP 200）の usageMetadata を日次・モデル別に
+// 加算する。生成そのものを止めないため、記録は最大 1.2 秒だけ
+// 待つ（通常は 0.2〜0.4 秒）。失敗しても応答には影響しない。
+// 端末キーで直接呼んだ分は中継を通らないので数えられない。
+// ============================================================
+function extractUsageFromJson(text) {
+  try {
+    const j = JSON.parse(text);
+    return j && j.usageMetadata ? j.usageMetadata : null;
+  } catch (e) { return null; }
+}
+// SSE は各イベントに usageMetadata が入り、最終値が累計。最後に見つかったものを取る
+function extractUsageFromSse(text) {
+  let usage = null;
+  for (const line of String(text || '').split('\n')) {
+    const t = line.trim();
+    if (!t.startsWith('data:')) continue;
+    const body = t.slice(5).trim();
+    if (!body || body === '[DONE]') continue;
+    try {
+      const obj = JSON.parse(body);
+      if (obj && obj.usageMetadata) usage = obj.usageMetadata;
+    } catch (e) { /* 途中で切れた断片は無視 */ }
+  }
+  return usage;
+}
+
+async function recordUsage(model, usage) {
+  const inTok = Number(usage?.promptTokenCount || 0);
+  const outTok = Number(usage?.candidatesTokenCount || 0) + Number(usage?.thoughtsTokenCount || 0);
+  const doc = await lib.fsGetJson(lib.AI_USAGE_DOC, 'usage', { days: {} });
+  if (!doc.days || typeof doc.days !== 'object') doc.days = {};
+  const day = lib.todayJst();
+  if (!doc.days[day]) doc.days[day] = {};
+  const cur = doc.days[day][model] || { calls: 0, in: 0, out: 0 };
+  cur.calls += 1; cur.in += inTok; cur.out += outTok;
+  doc.days[day][model] = cur;
+  // 肥大化防止: 直近62日分だけ残す
+  const keys = Object.keys(doc.days).sort();
+  while (keys.length > 62) delete doc.days[keys.shift()];
+  doc.updatedAt = new Date().toISOString();
+  await lib.fsSetJson(lib.AI_USAGE_DOC, 'usage', doc);
+}
+
+// 記録を試みるが、応答を待たせすぎない（失敗・遅延は無視）
+async function recordUsageQuiet(model, usage) {
+  if (!usage) return;
+  try {
+    await Promise.race([
+      recordUsage(model, usage),
+      new Promise(r => setTimeout(r, 1200))
+    ]);
+  } catch (e) { /* 集計の失敗は生成に影響させない */ }
 }
 
 function readBody(req) {
@@ -124,10 +184,22 @@ module.exports = async (req, res) => {
     if (body.stream) res.setHeader('Cache-Control', 'no-cache');
     if (!up.body) { res.end(); return; }
     const reader = up.body.getReader();
+    // 利用量集計用に、応答のコピーを上限付きで集める（usageMetadata は末尾側に出る）
+    const collected = [];
+    let collectedBytes = 0;
+    const COLLECT_CAP = 1024 * 1024;
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
-      res.write(Buffer.from(value));
+      const buf = Buffer.from(value);
+      res.write(buf);
+      if (collectedBytes < COLLECT_CAP) { collected.push(buf); collectedBytes += buf.length; }
+    }
+    // 利用量の記録は本文を流し終えてから（ストリーミング表示は妨げない）
+    if (up.status === 200) {
+      const text = Buffer.concat(collected).toString('utf8');
+      const usage = body.stream ? extractUsageFromSse(text) : extractUsageFromJson(text);
+      await recordUsageQuiet(model, usage);
     }
     res.end();
   } catch (e) {
