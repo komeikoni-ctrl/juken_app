@@ -592,6 +592,7 @@ const applyTheme = (mode) => {
     if (id === 'money') { if(typeof renderMoney === 'function') renderMoney(); }
     if (id === 'settings') {
       if(typeof renderSettings === 'function') renderSettings();
+      if(typeof PushUI !== 'undefined') PushUI.refreshSettings();
       if(typeof window.renderSubjectMerge === 'function') window.renderSubjectMerge();
       if(typeof window.renderTrash === 'function') window.renderTrash();
       if(typeof window.renderBackups === 'function') window.renderBackups();
