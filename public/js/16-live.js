@@ -537,8 +537,13 @@ const LiveFeed = {
       // 一覧に無いモデルが選ばれていても勝手に切り替えない
       if (current && !opts.some(o => o.value === current)) opts.push({ value: current, text: current + '（提供終了の可能性）' });
       const prev = sel.value;
+      // 「おまかせ（自動）」はモデル一覧には無い選択肢なので、再構築のたびに先頭へ戻す
+      const autoOpt = orig.find(o => o.value === 'auto') || { value: 'auto', text: 'おまかせ（自動・コスト最適）' };
+      if (!opts.some(o => o.value === 'auto')) opts.unshift(autoOpt);
       sel.innerHTML = opts.map(o => `<option value="${esc(o.value)}">${esc(o.text)}</option>`).join('');
-      sel.value = current || prev;
+      // おまかせ中は選択欄もおまかせのまま（保存済みモデルへ勝手に戻さない）
+      if (typeof AiModelMode !== 'undefined' && AiModelMode.get() === 'auto') sel.value = 'auto';
+      else sel.value = current || prev;
       if (!sel.value && prev) sel.value = prev;
       LiveFeed.renderPricing();
     } catch (e) { console.warn('[live] モデル一覧の反映に失敗', e); }
