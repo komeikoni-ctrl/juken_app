@@ -602,49 +602,10 @@ const applyTheme = (mode) => {
     syncIndicator(id);
   };
 
-  // iOS 26 指への吸い付きスワイプ
-  let startX = 0, startY = 0, isTouching = false;
-  
-  if(main) {
-    main.addEventListener('touchstart', e => {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-      isTouching = true;
-      if(indicator) indicator.style.transition = 'transform 0.1s linear, width 0.1s linear';
-    }, {passive:true});
-
-    main.addEventListener('touchmove', e => {
-      if(!isTouching) return;
-      const diffX = e.touches[0].clientX - startX;
-      const diffY = e.touches[0].clientY - startY;
-      
-      // 縦スクロール優先時は横スワイプをキャンセル
-      if(Math.abs(diffX) < Math.abs(diffY)) { isTouching = false; return; }
-
-      const activeBtn = document.querySelector('.nav-btn.active');
-      if(activeBtn && indicator) {
-        const stretch = diffX * 0.15;
-        indicator.style.transform = `translateX(${activeBtn.offsetLeft + 4 - stretch}px)`;
-        indicator.style.width = (activeBtn.offsetWidth - 8 + Math.abs(stretch)) + 'px';
-      }
-    }, {passive:true});
-
-    main.addEventListener('touchend', e => {
-      if(!isTouching) return;
-      isTouching = false;
-      if(indicator) indicator.style.transition = 'transform 0.4s cubic-bezier(0.2, 1, 0.2, 1.1), width 0.4s ease';
-      
-      const diffX = e.changedTouches[0].clientX - startX;
-      if(Math.abs(diffX) > 60) {
-        const curIdx = tabOrder.indexOf(S.currentPage || 'home');
-        if(diffX > 0 && curIdx > 0) window.showPage(tabOrder[curIdx - 1]);
-        else if(diffX < 0 && curIdx < tabOrder.length - 1) window.showPage(tabOrder[curIdx + 1]);
-        else syncIndicator(S.currentPage || 'home');
-      } else {
-        syncIndicator(S.currentPage || 'home');
-      }
-    });
-  }
+  // 横スワイプでのページ遷移は廃止した（2026-10-27, v2027.10.27-4）。
+  // ページ内の横スクロール要素（お金のサブタブや月のチップ列など）を触ると
+  // ページ自体が切り替わってしまい使いにくいため。ページ遷移はタブのタップのみ。
+  void tabOrder; // 並び順の定義は将来の参照用に残す（スワイプ遷移では使わない）
 
   // 起動時の初期化
   setTimeout(() => {
