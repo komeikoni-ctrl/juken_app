@@ -505,7 +505,8 @@ window.setTheme = (mode) => {
 // 選んだスタイルは S.userStyle に入れて、ライト／ダークと同じく端末間で同期する。
 const UI_STYLES = [
   { id: 'glass', name: '🪟 いつもの', desc: 'すりガラスのような、やわらかい見た目' },
-  { id: 'pop',   name: '🍬 ぷっくりポップ', desc: 'くっきりした線と影。シールのよう' }
+  { id: 'pop',   name: '🍬 ぷっくりポップ', desc: 'くっきりした線と影。シールのよう' },
+  { id: 'modern', name: '🌿 すっきりモダン', desc: '上品で落ち着いた、柔らかい影と整った余白' }
 ];
 const applyUiStyle = (id) => {
   const st = UI_STYLES.find(s => s.id === id) || UI_STYLES[0];
@@ -546,7 +547,8 @@ const applyTheme = (mode) => {
 
   // カプセルを動かす
   const syncIndicator = (id) => {
-    const btn = document.querySelector(`.nav-btn[onclick*="'${id}'"]`);
+    let btn = document.querySelector(`.tabbar .nav-btn[onclick*="'${id}'"]`);
+    if (!btn) btn = document.getElementById('tab-more-btn');
     if(btn && indicator) {
       indicator.style.width = (btn.offsetWidth - 8) + 'px';
       indicator.style.transform = `translateX(${btn.offsetLeft + 4}px)`;
@@ -573,10 +575,13 @@ const applyTheme = (mode) => {
 
     // ナビボタン状態更新
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    const targetBtn = btn || document.querySelector(`.nav-btn[onclick*="'${id}'"]`);
+    // タブバーに無いページ（その他シート側）は「その他」ボタンをアクティブにする
+    let targetBtn = btn || document.querySelector(`.tabbar .nav-btn[onclick*="'${id}'"]`);
+    if (!targetBtn) targetBtn = document.getElementById('tab-more-btn');
     if (targetBtn) {
       targetBtn.classList.add('active');
-      targetBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      // 下部タブバーは固定表示で常に見えているので、そこではスクロールさせない
+      if (!targetBtn.closest('.tabbar')) targetBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
 
     // ページごとの初期化（全ページ対応）
