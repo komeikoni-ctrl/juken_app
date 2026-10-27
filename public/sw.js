@@ -36,6 +36,7 @@ const PRECACHE = [
   './js/15-past-exams.js',
   './js/16-live.js',
   './js/17-money.js',
+  './js/18-push.js',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js',
   'https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js',
@@ -54,6 +55,39 @@ self.addEventListener('activate', (e) => {
     const keys = await caches.keys();
     await Promise.all(keys.filter(k => k !== CACHE && k.startsWith('juken-')).map(k => caches.delete(k)));
     await self.clients.claim();
+  })());
+});
+
+// ============================================================
+// Web Push（締切リマインド・入試情報の更新）
+// 送信側は Vercel Functions（api/push-send.js 等）。ペイロードは
+// {title, body, url, tag} の JSON。
+// ============================================================
+self.addEventListener('push', (e) => {
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; } catch (err) {
+    try { data = { body: e.data ? e.data.text() : '' }; } catch (err2) { data = {}; }
+  }
+  const title = data.title || '受験管理アプリ2027';
+  const options = {
+    body: data.body || '',
+    icon: './icon.png',
+    badge: './icon.png',
+    tag: data.tag || 'juken',
+    data: { url: data.url || '/' }
+  };
+  e.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const target = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of wins) {
+      if ('focus' in w) { try { await w.navigate(target); } catch (err) {} return w.focus(); }
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(target);
   })());
 });
 
