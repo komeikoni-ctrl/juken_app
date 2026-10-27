@@ -191,18 +191,38 @@ const renderSettings = () => {
   if (nijiEl) nijiEl.value = S.nijiDate || '2027-02-25';
   // 別の端末で変えた見た目のスタイルもこの端末に反映する
   if (typeof applyUiStyle === 'function') applyUiStyle(S.userStyle);
-  // 別の端末で変更したAIモデルの設定をこの端末にも反映する
+  // 別の端末で変更したAIモデルの設定をこの端末にも反映する（手動モードのときだけ。
+  // おまかせ中は選択欄を「おまかせ」のままにし、保存済みモデルも書き換えない）
   const modelEl = document.getElementById('set-model');
-  if (modelEl && S.aiModel && AVAILABLE_MODELS.includes(S.aiModel) && localStorage.getItem('geminiModel') !== S.aiModel) {
-    localStorage.setItem('geminiModel', S.aiModel);
-    modelEl.value = S.aiModel;
+  if (modelEl) {
+    if (typeof AiModelMode !== 'undefined' && AiModelMode.get() === 'auto') {
+      modelEl.value = 'auto';
+    } else if (S.aiModel && AVAILABLE_MODELS.includes(S.aiModel) && localStorage.getItem('geminiModel') !== S.aiModel) {
+      localStorage.setItem('geminiModel', S.aiModel);
+      modelEl.value = S.aiModel;
+    }
   }
+  if (typeof window.renderModelModeNote === 'function') window.renderModelModeNote();
+};
+
+// 設定画面のモデル欄の下に出す「今の振り分け状態」の説明
+window.renderModelModeNote = () => {
+  const el = document.getElementById('model-mode-note');
+  if (!el || typeof AiModelMode === 'undefined') return;
+  el.textContent = '🤖 ' + AiModelMode.describe();
 };
 window.saveSettings = () => {
   const ak = document.getElementById('set-api-key')?.value.trim() || '';
   if(ak) localStorage.setItem('geminiApiKey', ak); else localStorage.removeItem('geminiApiKey');
   const modelEl = document.getElementById('set-model');
-  if(modelEl && AVAILABLE_MODELS.includes(modelEl.value)) { localStorage.setItem('geminiModel', modelEl.value); S.aiModel = modelEl.value; }
+  if (modelEl && modelEl.value === 'auto') {
+    // おまかせ: モードだけ記録し、保存済みの手動モデルは消さない（手動に戻したとき復活する）
+    if (typeof AiModelMode !== 'undefined') AiModelMode.set('auto');
+  } else if (modelEl && AVAILABLE_MODELS.includes(modelEl.value)) {
+    if (typeof AiModelMode !== 'undefined') AiModelMode.set('manual');
+    localStorage.setItem('geminiModel', modelEl.value); S.aiModel = modelEl.value;
+  }
+  if (typeof window.renderModelModeNote === 'function') window.renderModelModeNote();
   const nameEl = document.getElementById('set-name');
   if(nameEl) S.userName = nameEl.value;
   const gradeEl = document.getElementById('set-grade');
@@ -246,9 +266,13 @@ document.addEventListener('DOMContentLoaded', () => {
   {
     const el = document.getElementById('set-model');
     if (el) {
-      el.value = localStorage.getItem('geminiModel') || DEFAULT_MODEL;
+      // おまかせ中は選択欄も「おまかせ」にする（保存済みモデルは手動用に保持）
+      if (typeof AiModelMode !== 'undefined' && AiModelMode.get() === 'auto') el.value = 'auto';
+      else el.value = localStorage.getItem('geminiModel') || DEFAULT_MODEL;
       if (!el.value) el.value = DEFAULT_MODEL; // 選択肢に無い値だと空欄になるため保険
+      el.addEventListener('change', () => { if (typeof window.renderModelModeNote === 'function') window.renderModelModeNote(); });
     }
+    if (typeof window.renderModelModeNote === 'function') window.renderModelModeNote();
   }
   const t = DateManager.getTodayStr(); ['m-date','ev-date','ms-date','hw-due','extra-date','sp-s','sp-e','add-date','pie-daily-date'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=t;});
   renderSettings(); renderHome(); renderCal(); renderWeek(); renderHeatmaps(); renderScoreTargetSettings(); window.renderScoring(false); window.renderTrend(false); renderChat(); renderNotes(); renderRepeatList();
