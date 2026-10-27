@@ -1288,11 +1288,11 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
     <div class="expand-body open">
       <p style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:10px">アプリを閉じていても、出願の開始・締切（3日前・前日・当日）と、志望校の入試ページの更新をスマホへ通知します。iPhoneでは「ホーム画面に追加」したアプリから有効化してください。</p>
       <div id="push-status" style="font-size:13px;line-height:1.7;margin-bottom:10px">状態を確認中…</div>
-      <div class="g3">
-        <button class="btn btn-p btn-sm" id="push-enable-btn" onclick="enablePush()">通知を有効にする</button>
-        <button class="btn btn-s btn-sm" id="push-test-btn" onclick="testPush()" disabled>テスト通知を送る</button>
-        <button class="btn btn-s btn-sm" id="push-disable-btn" onclick="disablePush()" disabled>無効にする</button>
-      </div>
+      <label style="display:flex;align-items:center;gap:10px;font-weight:700;font-size:14px;margin-bottom:12px;cursor:pointer">
+        <input type="checkbox" id="push-toggle" onchange="togglePush(this.checked)" style="width:24px;height:24px;accent-color:var(--accent)">
+        通知を受け取る（オン／オフ）
+      </label>
+      <button class="btn btn-s btn-sm" id="push-test-btn" onclick="testPush()" disabled>テスト通知を送る</button>
     </div>
   </div>
 
