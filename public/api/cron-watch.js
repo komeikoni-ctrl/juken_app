@@ -12,11 +12,12 @@
 const crypto = require('crypto');
 const lib = require('./_pushlib');
 
-// 監視対象（いずれも実際にアクセスして確認した公式の入学案内トップ）
+// 監視対象（いずれも実際にアクセスし、タイトルまで確認した公式の入試情報トップ）
+// 同志社: 本体サイトの「入学案内」、立命館: 入試情報サイト、近畿: 入試情報サイト「いくぞ！近大」
 const TARGETS = [
   { id: 'doshisha', name: '同志社大学', url: 'https://www.doshisha.ac.jp/admission/' },
-  { id: 'ritsumei', name: '立命館大学', url: 'https://www.ritsumei.ac.jp/admission/' },
-  { id: 'kindai',   name: '近畿大学',   url: 'https://www.kindai.ac.jp/admission/' }
+  { id: 'ritsumei', name: '立命館大学', url: 'https://admission.ritsumei.ac.jp/' },
+  { id: 'kindai',   name: '近畿大学',   url: 'https://kindai.jp/' }
 ];
 
 // HTML → 比較用の本文テキスト。
