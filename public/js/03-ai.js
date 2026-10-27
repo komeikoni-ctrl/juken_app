@@ -26,6 +26,73 @@ const STREAM_IDLE_TIMEOUT_MS = 90000;
 const THINKING_BY_PURPOSE = { fast: 'low', normal: null, deep: 'high' };
 
 // ============================================================
+// AI の単価と概算コスト（利用量表示用）
+// ------------------------------------------------------------
+// 単価は Google 公式料金ページ（ai.google.dev/pricing）で
+// 2026-10-27 に確認した公開価格（USD / 100万トークン、標準料金）。
+// 期間で単価が変わるモデルは until（その日まで適用）で切り替える。
+// 円換算は 1ドル=155円 の概算レート。あくまで目安の表示であり、
+// 実際の請求は Google 側の明細が正。
+// ============================================================
+const AI_USD_JPY = 155;
+const AI_PRICES = {
+  'gemini-4-argon':       [{ until: '2026-11-30', input: 2.00, output: 10.00 }, { until: null, input: 4.00, output: 20.00 }],
+  'gemini-3.8-flash':     [{ until: '2026-12-31', input: 0.75, output: 3.75 }, { until: null, input: 1.50, output: 7.50 }],
+  'gemini-3.6-flash':     [{ until: null, input: 0.75, output: 3.75 }],
+  'gemini-3.5-flash-lite': [{ until: null, input: 0.10, output: 0.40 }],
+  'gemini-3.1-pro-preview': [{ until: null, input: 2.00, output: 12.00 }],
+  'gemini-2.5-flash':     [{ until: null, input: 0.30, output: 2.50 }]
+};
+const AiCost = {
+  // その日付に効く単価。表に無いモデルは Flash 系として概算する
+  priceFor: (model, dateStr) => {
+    const tiers = AI_PRICES[model] || AI_PRICES['gemini-3.8-flash'];
+    for (const t of tiers) { if (!t.until || (dateStr || '') <= t.until) return t; }
+    return tiers[tiers.length - 1];
+  },
+  // 概算コスト（円）。dateStr は単価の期間判定用（省略時は今日）
+  estimateYen: (model, inTok, outTok, dateStr) => {
+    const p = AiCost.priceFor(model, dateStr || new Date().toISOString().slice(0, 10));
+    return ((Number(inTok) || 0) * p.input + (Number(outTok) || 0) * p.output) / 1000000 * AI_USD_JPY;
+  }
+};
+
+// ============================================================
+// モデルの「おまかせ（自動）」振り分け
+// ------------------------------------------------------------
+// モードは端末ごとの localStorage 'jukenAiModelMode'（'auto' |
+// 'manual'）。キーが無い端末では、モデルを保存したことがあれば
+// 手動（その選択を尊重）、無ければ自動を既定とする。
+// 自動の割り当て:
+//   fast（抽出・要約・分類などの軽い処理）… 最も安い Flash Lite
+//   normal / deep（コーチ・チャットの本生成）… 既定モデル
+// Argon などの高額モデルは、手動で明示選択したときだけ使う。
+// 手動モードでは従来どおり保存済みモデルをそのまま使う。
+// ============================================================
+const AiModelMode = {
+  KEY: 'jukenAiModelMode',
+  AUTO_LIGHT_MODEL: 'gemini-3.5-flash-lite',
+  get: () => {
+    try {
+      const v = localStorage.getItem(AiModelMode.KEY);
+      if (v === 'auto' || v === 'manual') return v;
+    } catch (e) { /* 読めなければ自動扱い */ }
+    try { return localStorage.getItem('geminiModel') ? 'manual' : 'auto'; } catch (e) { return 'auto'; }
+  },
+  set: (mode) => { try { localStorage.setItem(AiModelMode.KEY, mode); } catch (e) {} },
+  // 自動モードでの割り当て（純粋関数寄り・テスト対象）
+  autoModelFor: (purpose) => purpose === 'fast' ? AiModelMode.AUTO_LIGHT_MODEL : DEFAULT_MODEL,
+  // 実際に使うモデルの解決。manual なら従来の getModel()、auto なら用途で振り分け
+  resolve: (purpose) => AiModelMode.get() === 'manual'
+    ? AiService.getModel()
+    : AiModelMode.autoModelFor(purpose),
+  // 設定画面に出す説明文
+  describe: () => AiModelMode.get() === 'manual'
+    ? '手動で選んだモデルを常に使います'
+    : 'おまかせ中：軽い処理（抽出・要約など）は ' + AiModelMode.AUTO_LIGHT_MODEL + '、コーチやチャットの生成は ' + DEFAULT_MODEL + ' を使います。高額モデル（Argon 等）は自動では使いません'
+};
+
+// ============================================================
 // AI 中継（Vercel Functions /api/gemini）クライアント
 // ------------------------------------------------------------
 // Vercel 上ではサーバー側がキーを持って中継するので、端末に
@@ -296,7 +363,9 @@ const AiService = {
       _retryCount = 0, _noSearch = false, _noThinking = false, _model = null, _noCache = false
     } = opts;
 
-    const model = _model || AiService.getModel();
+    // モデルは用途で解決する（おまかせ自動 or 手動選択）。再試行で _model が
+    // 指定されている場合（フォールバック先など）はそちらを常に優先する
+    const model = _model || AiModelMode.resolve(purpose);
     const withSearch = useSearch && !_noSearch;
     const thinkingLevel = _noThinking ? null : THINKING_BY_PURPOSE[purpose];
 
