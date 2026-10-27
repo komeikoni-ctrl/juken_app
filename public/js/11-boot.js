@@ -571,12 +571,70 @@ SelfTest.add('お金: 支出は月ごとに切り替えられる', () => {
     const sep = MoneyView.html(data, 'expenses');
     assert(sep.includes('2026年9月の支出'), '選択した月の支出セクションになること');
     assert(sep.includes('¥5,337'), '9月の支出合計が出ること');
-    assert(sep.includes(`MoneyExp.setYm('2026-10')`), '月切替のボタンが出ること');
+    assert(sep.includes('money-monthbar'), '月移動バーが出ること');
+    assert(sep.includes(`onchange="MoneyExp.setYm(this.value)"`), '月のプルダウンが出ること');
+    assert(sep.includes('<option value="2026-09" selected>2026年9月</option>'), 'プルダウンで選択中の月が選ばれていること');
+    assert(!sep.includes(`MoneyExp.setYm('2026-10')`), '月チップのグリッドが無いこと');
     MoneyExp.ym = '2026-10';
     const oct = MoneyView.html(data, 'expenses');
     assert(oct.includes('2026年10月の支出') && oct.includes('¥10,749'), '10月に切り替えられること');
   } finally {
     MoneyExp.ym = null;
+  }
+});
+
+SelfTest.add('お金: 月移動バーの‹›とプルダウンで月が切り替わる', () => {
+  const data = {
+    total: 28088, categories: [], holdings: [],
+    summaries: [
+      { month: '2026-09', income: [], expenses: [{ category_name: '食費', value_in_jpy: 5337 }] },
+      { month: '2026-10', income: [], expenses: [{ category_name: '通信費', value_in_jpy: 10749 }] }
+    ],
+    kakeibo: { months: {
+      '2026-09': [{ date: '2026-09-10', title: 'ローソン', cat: '食費', src: 'PayPay', io: 'out', amount: 520 }],
+      '2026-10': [
+        { date: '2026-10-03', title: 'APPLE COM BILL', cat: '通信費', src: 'PayPay銀行', io: 'out', amount: 3499 },
+        { date: '2026-10-01', title: 'ローソン', cat: '食費', src: 'PayPay', io: 'out', amount: 520 }
+      ]
+    }, truncated: [] }
+  };
+  try {
+    // 支出: バーは1行部品（select 1つ＋‹ › ボタン2つ）で、端では片方が disabled
+    MoneyExp.ym = '2026-10';
+    const exp = MoneyView.html(data, 'expenses');
+    assertEq(exp.split('<select').length - 1, 1, '支出バーにプルダウンが1つだけあること');
+    assert(exp.includes(`onclick="MoneyExp.stepYm(-1)"`) && exp.includes(`onclick="MoneyExp.stepYm(1)"`), '支出バーに‹ ›ボタンがあること');
+    assert(exp.includes('aria-label="次の月" disabled'), '最新月では›が disabled のこと');
+    assert(!exp.includes('aria-label="前の月" disabled'), '最新月では‹が押せること');
+    // 支出: ‹（前の月）で 2026-09 に切り替わり、合計も変わる。端ではそれ以上動かない
+    MoneyExp.stepYm(-1);
+    assertEq(MoneyExp.ym, '2026-09', '支出: ‹で前月へ移動');
+    const expSep = MoneyView.html(data, 'expenses');
+    assert(expSep.includes('2026年9月の支出') && expSep.includes('¥5,337'), '支出: 前月に切り替わると合計も変わること');
+    assert(expSep.includes('aria-label="前の月" disabled'), '最古月では‹が disabled のこと');
+    MoneyExp.stepYm(-1);
+    assertEq(MoneyExp.ym, '2026-09', '支出: 最古月で‹を押しても動かないこと');
+    MoneyExp.stepYm(1);
+    assertEq(MoneyExp.ym, '2026-10', '支出: ›で次月へ戻ること');
+    // 家計簿: バーが出て、チップグリッドが無いこと
+    MoneyKb.ym = '2026-10'; MoneyKb.showAll = false;
+    const kb = MoneyView.html(data, 'kakeibo');
+    assert(kb.includes('money-monthbar'), '家計簿に月移動バーが出ること');
+    assert(kb.includes(`onchange="MoneyKb.setYm(this.value)"`), '家計簿に月のプルダウンが出ること');
+    assert(kb.includes('<option value="2026-10" selected>2026年10月</option>'), '家計簿のプルダウンで選択月が選ばれていること');
+    assert(!kb.includes(`MoneyKb.setYm('2026-09')`), '家計簿に月チップのグリッドが無いこと');
+    // 家計簿: ‹で前月へ。合計（支出）が 4019→520 に変わる
+    MoneyKb.stepYm(-1);
+    assertEq(MoneyKb.ym, '2026-09', '家計簿: ‹で前月へ移動');
+    const kbSep = MoneyView.html(data, 'kakeibo');
+    assert(kbSep.includes('¥520') && !kbSep.includes('¥4,019'), '家計簿: 前月に切り替わると合計も変わること');
+    MoneyKb.stepYm(1);
+    assertEq(MoneyKb.ym, '2026-10', '家計簿: ›で次月へ戻ること');
+    MoneyKb.stepYm(1);
+    assertEq(MoneyKb.ym, '2026-10', '家計簿: 最新月で›を押しても動かないこと');
+  } finally {
+    MoneyExp.ym = null;
+    MoneyKb.ym = null; MoneyKb.showAll = false;
   }
 });
 

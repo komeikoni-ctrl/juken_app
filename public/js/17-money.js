@@ -164,14 +164,36 @@ const MoneyTab = {
 // 支出セクションの表示状態（メモリ上だけ。Sや同期データには載せない）
 const MoneyExp = {
   ym: null,       // 選択中の月。null なら今月（無ければ最新の月）
-  setYm: (ym) => { MoneyExp.ym = ym; rerenderMoneyRoot(); }
+  _months: [],    // 直近の描画で使った月一覧（新しい順）。‹ › ボタンの移動先を決めるために持つ
+  setYm: (ym) => { MoneyExp.ym = ym; rerenderMoneyRoot(); },
+  // d=-1: 前の月（古い方） / d=+1: 次の月（新しい方）。カレンダーの chMonth と同じ向き。
+  // 月一覧は新しい順なので、古い月は添字+1・新しい月は添字-1。端では動かない
+  stepYm: (d) => {
+    const months = MoneyExp._months || [];
+    if (months.length < 2) return;
+    const now = new Date();
+    const curYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const cur = (MoneyExp.ym && months.includes(MoneyExp.ym)) ? MoneyExp.ym
+      : (months.includes(curYm) ? curYm : months[0]);
+    const target = months[months.indexOf(cur) - d];
+    if (target && target !== cur) MoneyExp.setYm(target);
+  }
 };
 
 // 家計簿の表示状態（メモリ上だけ。Sや同期データには載せない）
 const MoneyKb = {
   ym: null,       // 選択中の月。null なら最新の月
   showAll: false, // 明細を全件出すか（初期は直近30件）
+  _months: [],    // 直近の描画で使った月一覧（新しい順）。‹ › ボタンの移動先を決めるために持つ
   setYm: (ym) => { MoneyKb.ym = ym; MoneyKb.showAll = false; MoneyKb.rerender(); },
+  // d=-1: 前の月（古い方） / d=+1: 次の月（新しい方）
+  stepYm: (d) => {
+    const months = MoneyKb._months || [];
+    if (months.length < 2) return;
+    const cur = (MoneyKb.ym && months.includes(MoneyKb.ym)) ? MoneyKb.ym : months[0];
+    const target = months[months.indexOf(cur) - d];
+    if (target && target !== cur) MoneyKb.setYm(target);
+  },
   toggleAll: () => { MoneyKb.showAll = !MoneyKb.showAll; MoneyKb.rerender(); },
   rerender: () => rerenderMoneyRoot()
 };
@@ -236,6 +258,25 @@ MoneyView.chipBtn = (label, onclick, active) =>
 MoneyView.chipRow = (inner) =>
   `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${inner}</div>`;
 
+// 月移動バー（支出・家計簿で共用する1行の部品）: [‹] [月のプルダウン] [›]
+// 月チップを全月並べると縦に長くなるため置き換えた。プルダウンはデータのある月を
+// 新しい順に並べ、遠くの月へも一発で飛べる。‹ › は隣の月へ移動し、端では disabled。
+// handler は状態オブジェクトの名前（'MoneyExp' / 'MoneyKb'）で、どちらも
+// setYm(ym) / stepYm(d) を持つ。見た目は .btn btn-sm btn-s とフォーム select の標準形。
+MoneyView.monthBar = (months, current, handler) => {
+  if (!Array.isArray(months) || months.length < 2) return '';
+  const idx = months.indexOf(current);
+  const prevDisabled = (idx < 0 || idx >= months.length - 1) ? ' disabled' : ''; // 古い方に月が無い
+  const nextDisabled = idx <= 0 ? ' disabled' : '';                              // 新しい方に月が無い
+  const opts = months.map(ym =>
+    `<option value="${ym}"${ym === current ? ' selected' : ''}>${esc(MoneyView.ymLabel(ym))}</option>`).join('');
+  return `<div class="money-monthbar" style="display:flex;gap:6px;align-items:center;margin-bottom:10px">
+    <button type="button" class="btn btn-sm btn-s" onclick="${handler}.stepYm(-1)" aria-label="前の月"${prevDisabled} style="font-size:13px;padding:6px 13px">‹</button>
+    <select onchange="${handler}.setYm(this.value)" aria-label="月を選ぶ" style="flex:1;min-width:0;width:auto;margin:0;padding:6px 10px;font-size:13px">${opts}</select>
+    <button type="button" class="btn btn-sm btn-s" onclick="${handler}.stepYm(1)" aria-label="次の月"${nextDisabled} style="font-size:13px;padding:6px 13px">›</button>
+  </div>`;
+};
+
 // サブタブバー。「更新」ボタンの行の下・最初のカードの上（index.html の #money-tabs）に出す
 MoneyView.tabsHtml = () => {
   const cur = MoneyTab.current;
@@ -252,6 +293,7 @@ MoneyView.sections = (data) => {
   const curYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   // 支出セクションの選択月（MoneyExp.ym が月別サマリにあればそれ、無ければ今月→最新月）
   const sumMonths = MoneyFeed.summaryMonths(data);
+  MoneyExp._months = sumMonths;
   const selExpYm = (MoneyExp.ym && sumMonths.includes(MoneyExp.ym)) ? MoneyExp.ym : curYm;
   const ms = MoneyFeed.monthSummary(data, selExpYm);
   const expTotal = ms ? MoneyFeed.sumValues(ms.expenses) : 0;
@@ -286,12 +328,10 @@ MoneyView.sections = (data) => {
 
   // ③ 支出（カテゴリ別・月切替つき）
   const exps = ms ? (ms.expenses || []).slice().sort((a, b) => (b.value_in_jpy || 0) - (a.value_in_jpy || 0)) : [];
-  const expChips = sumMonths.length > 1
-    ? MoneyView.chipRow(sumMonths.map(ym => MoneyView.chipBtn(MoneyView.ymLabel(ym), `MoneyExp.setYm('${ym}')`, ms && ym === ms.month)).join(''))
-    : '';
+  const expBar = ms ? MoneyView.monthBar(sumMonths, ms.month, 'MoneyExp') : '';
   out.expenses = ms
     ? `<div class="card"><div class="card-hdr"><span class="card-hdr-title">🧾 ${esc(MoneyView.ymLabel(ms.month))}の支出</span><span class="muted" style="font-size:11px">収入 ${MoneyView.yen(incTotal)}</span></div>
-      ${expChips}<div style="font-size:22px;font-weight:900;margin-bottom:6px">${MoneyView.yen(expTotal)}</div>` +
+      ${expBar}<div style="font-size:22px;font-weight:900;margin-bottom:6px">${MoneyView.yen(expTotal)}</div>` +
       (exps.length ? exps.map(e => MoneyView.row(e.category_name, '', e.value_in_jpy, MoneyFeed.pct(e.value_in_jpy, expTotal), 'var(--a2)')).join('')
                     : '<div class="empty">この月の支出はまだありません</div>') +
       `<div class="muted" style="font-size:11px;margin-top:8px">銀行・証券の連携分（マネーフォワード ME のカテゴリ集計）。PayPay払いは下の PayPay 欄を見てください。</div></div>`
@@ -299,6 +339,7 @@ MoneyView.sections = (data) => {
 
   // ④ 家計簿（月別の明細）
   const kbMonths = MoneyFeed.kakeiboMonths(data);
+  MoneyKb._months = kbMonths;
   const selYm = (MoneyKb.ym && kbMonths.includes(MoneyKb.ym)) ? MoneyKb.ym : kbMonths[0];
   const list = MoneyFeed.kakeiboList(data, selYm);
   // 明細が要約に置き換わった月は、合計とカテゴリ別だけを表示する
@@ -307,8 +348,7 @@ MoneyView.sections = (data) => {
     ? { out: kbSum.out || 0, inn: kbSum.in || 0, cats: (kbSum.cats || []).slice().sort((a, b) => (b.amount || 0) - (a.amount || 0)) }
     : MoneyFeed.kakeiboTotals(list);
   const shown = MoneyKb.showAll ? list : list.slice(0, 30);
-  const chips = kbMonths.map(ym =>
-    MoneyView.chipBtn(MoneyView.ymLabel(ym), `MoneyKb.setYm('${ym}')`, ym === selYm)).join('');
+  const kbBar = MoneyView.monthBar(kbMonths, selYm, 'MoneyKb');
   const kbCount = kbSum ? (kbSum.count || 0) : list.length;
   const rowHtml = (x) => {
     const isIn = x.io === 'in';
@@ -325,7 +365,7 @@ MoneyView.sections = (data) => {
   };
   out.kakeibo = kbMonths.length
     ? `<div class="card"><div class="card-hdr"><span class="card-hdr-title">📒 家計簿</span><span class="muted" style="font-size:11px">${kbCount}件</span></div>
-      ${MoneyView.chipRow(chips)}
+      ${kbBar}
       <div class="g2" style="margin-bottom:6px">
         <div class="stat"><div class="stat-v" style="font-size:19px">${MoneyView.yen(tot.out)}</div><div class="stat-l">支出</div></div>
         <div class="stat"><div class="stat-v" style="font-size:19px;color:var(--a3)">${MoneyView.yen(tot.inn)}</div><div class="stat-l">入金</div></div>
