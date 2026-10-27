@@ -424,32 +424,8 @@ const MoneySubs = {
     });
     return { monthlyEq: Math.round(monthly), yearlyEq: Math.round(yearly) };
   },
-  // 定期支払いの候補: 家計簿明細で「同じタイトル・同じ金額の支出」が2か月以上あるもの。
-  // すでに同じ名前で登録済みのものは除く
-  detectCandidates: (data, items) => {
-    const months = data?.kakeibo?.months;
-    if (!months || typeof months !== 'object') return [];
-    const registered = new Set((Array.isArray(items) ? items : []).map(x => String(x?.name || '')));
-    const byKey = {};
-    Object.entries(months).forEach(([ym, list]) => {
-      (Array.isArray(list) ? list : []).forEach(x => {
-        if (!x || x.io === 'in') return;
-        const amt = Number(x.amount) || 0;
-        if (!x.title || amt <= 0) return;
-        const key = `${x.title}|${amt}`;
-        if (!byKey[key]) byKey[key] = { title: x.title, amount: amt, months: new Set(), cat: x.cat || '' };
-        byKey[key].months.add(ym);
-      });
-    });
-    return Object.values(byKey)
-      .filter(c => c.months.size >= 2 && !registered.has(c.title))
-      .map(c => ({ title: c.title, amount: c.amount, monthCount: c.months.size, cat: c.cat }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 8);
-  },
   // ---- フォーム（モーダル mo-sub） ----
   editingId: null,
-  _cands: [],
   _fill: (item) => {
     document.getElementById('sub-name').value = item?.name || '';
     document.getElementById('sub-amount').value = item?.amount ?? '';
@@ -465,11 +441,6 @@ const MoneySubs = {
     MoneySubs.editingId = id;
     MoneySubs._fill(it);
     showMo('mo-sub');
-  },
-  openCandidate: (i) => {
-    const c = MoneySubs._cands[i];
-    if (!c) return;
-    MoneySubs.openNew({ name: c.title, amount: c.amount, cycle: 'month', nextDate: '', memo: c.cat ? `候補から追加（${c.cat}）` : '候補から追加' });
   },
   saveFromForm: () => {
     const item = {
@@ -601,7 +572,7 @@ MoneyView.sections = (data) => {
       `<div class="muted" style="font-size:11px;margin-top:8px">銀行（楽天銀行・PayPay銀行）の明細と PayPay の支払い・送金を合わせたものです。PayPayへのチャージは、二重に数えないため明細に入れていません。</div></div>`
     : '';
 
-  // ⑥ サブスク（S.moneySubs が正。候補は家計簿データから検出）
+  // ⑥ サブスク（S.moneySubs が正）
   const subsItems = MoneySubs.items().slice().sort((a, b) => {
     if (a.nextDate && b.nextDate) return a.nextDate < b.nextDate ? -1 : 1;
     if (a.nextDate) return -1;
@@ -609,8 +580,6 @@ MoneyView.sections = (data) => {
     return (b.amount || 0) - (a.amount || 0);
   });
   const st = MoneySubs.totals(subsItems);
-  const cands = MoneySubs.detectCandidates(data, subsItems);
-  MoneySubs._cands = cands;
   const subRow = (x) => {
     const dLeft = x.nextDate ? DateManager.daysBetween(x.nextDate) : null;
     const nextLabel = x.nextDate
@@ -636,21 +605,7 @@ MoneyView.sections = (data) => {
       <div class="stat"><div class="stat-v" style="font-size:19px">${MoneyView.yen(st.yearlyEq)}</div><div class="stat-l">年額換算の合計</div></div>
     </div>` +
     (subsItems.length ? subsItems.map(subRow).join('') : '<div class="empty">登録されているサブスクはまだありません。「＋ 追加」から登録できます。</div>') +
-    `</div>` +
-    (cands.length
-      ? `<div class="card"><div class="card-hdr"><span class="card-hdr-title">💡 定期支払いの候補</span></div>` +
-        cands.map((c, i) => `<div class="row" style="align-items:flex-start">
-          <div class="row-title" style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:700">${esc(c.title)}</div>
-            <div class="muted" style="font-size:11px">${c.monthCount}か月連続で同じ金額の支出${c.cat ? ` ・ ${esc(c.cat)}` : ''}</div>
-          </div>
-          <div style="text-align:right;flex:none;margin-left:10px">
-            <div style="font-size:14px;font-weight:800">${MoneyView.yen(c.amount)}</div>
-            <button type="button" class="btn btn-sm btn-s" onclick="MoneySubs.openCandidate(${i})" style="font-size:11px;padding:4px 10px;margin-top:4px">＋ 追加</button>
-          </div>
-        </div>`).join('') +
-        `<div class="muted" style="font-size:11px;margin-top:8px">家計簿の明細から、同じ名前・同じ金額の支出が2か月以上続いているものを候補として出しています。追加すると金額と名前がフォームに入ります（次回支払日は未入力です）。</div></div>`
-      : '');
+    `</div>`;
 
   // ⑤ PayPay（CSVスナップショット）
   const pp = data.paypay;

@@ -755,7 +755,7 @@ SelfTest.add('サブスク: CRUDと合計計算', () => {
   } finally { S.moneySubs = saved; }
 });
 
-SelfTest.add('サブスク: 定期支払い候補の検出と描画', () => {
+SelfTest.add('サブスク: 一覧と合計が描画され、候補欄は出ない', () => {
   const saved = S.moneySubs;
   try {
     S.moneySubs = { seeded: true, items: [{ id: 'x1', name: 'CLAUDE.AI', amount: 3499, cycle: 'month', nextDate: '', memo: '' }] };
@@ -764,8 +764,7 @@ SelfTest.add('サブスク: 定期支払い候補の検出と描画', () => {
       kakeibo: { months: {
         '2026-09': [
           { date: '2026-09-03', title: 'APPLE COM BILL', cat: '通信費', src: 'PayPay銀行', io: 'out', amount: 600 },
-          { date: '2026-09-05', title: 'CLAUDE.AI', cat: '通信費', src: 'PayPay銀行', io: 'out', amount: 3499 },
-          { date: '2026-09-10', title: 'ローソン', cat: '食費', src: 'PayPay', io: 'out', amount: 520 }
+          { date: '2026-09-05', title: 'CLAUDE.AI', cat: '通信費', src: 'PayPay銀行', io: 'out', amount: 3499 }
         ],
         '2026-10': [
           { date: '2026-10-03', title: 'APPLE COM BILL', cat: '通信費', src: 'PayPay銀行', io: 'out', amount: 600 },
@@ -773,14 +772,11 @@ SelfTest.add('サブスク: 定期支払い候補の検出と描画', () => {
         ]
       }, truncated: [] }
     };
-    const cands = MoneySubs.detectCandidates(data, MoneySubs.items());
-    assertEq(cands.length, 1, '2か月連続の同額支出だけが候補（登録済みと1か月だけのものは除外）');
-    assertEq(cands[0].title, 'APPLE COM BILL', '候補のタイトル');
-    assertEq(cands[0].monthCount, 2, '候補の継続月数');
     const html = MoneyView.html(data, 'subs');
     assert(html.includes('CLAUDE.AI') && html.includes('月額換算の合計') && html.includes('¥41,988'), 'サブスクタブに登録済みと年額換算が出ること');
-    assert(html.includes('定期支払いの候補') && html.includes('APPLE COM BILL'), '候補が描画されること');
-    assert(html.includes('MoneySubs.openCandidate(0)'), '候補タップでフォームに流し込めること');
+    assert(!html.includes('定期支払いの候補'), '定期支払いの候補欄は描画されないこと');
+    assert(!html.includes('openCandidate'), '候補の追加ボタンは描画されないこと');
+    assert(!('detectCandidates' in MoneySubs), '候補検出ロジックが存在しないこと');
     assert(MoneyTab.TABS.some(t => t.id === 'subs'), 'サブタブにサブスクがあること');
   } finally { S.moneySubs = saved; }
 });
