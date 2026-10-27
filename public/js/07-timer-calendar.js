@@ -401,8 +401,10 @@ const renderWeek = () => {
   document.getElementById('week-wrap').innerHTML = html; 
 };
 window.chWeek = (d) => { weekOffset += d; renderWeek(); };
+window.chWeekToday = () => { weekOffset = 0; renderWeek(); }; // 今週へ一発で戻る（月カレンダーの「今月」と同じ）
 
 window.chEvalMonth = (d) => { evalCalMonth = new Date(evalCalMonth.getFullYear(), evalCalMonth.getMonth()+d, 1); renderCoachHistory(); };
+window.chEvalToday = () => { evalCalMonth = new Date(); renderCoachHistory(); }; // 今月へ一発で戻る（月カレンダーの「今月」と同じ）
 window.showEvalDetail = (dateStr) => {
   const detailEl = document.getElementById('eval-cal-detail'); const h = S.aiCoachLog.history.find(x => x.date === dateStr);
   if (!h) { detailEl.style.display = 'none'; return; }
