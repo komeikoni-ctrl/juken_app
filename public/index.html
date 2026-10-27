@@ -8,6 +8,11 @@
      public/manifest.json（正しいアイコン設定）が完全に無視されていた -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#007AFF">
+<!-- CDN・API の接続を先に温めて初回表示を速くする（Service Worker の取得戦略には影響しない） -->
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="dns-prefetch" href="https://generativelanguage.googleapis.com">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" type="image/png" href="icon.png">
 
@@ -786,6 +791,8 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
   
   <div id="home-evening-alert" style="display:none; margin-bottom:14px;"></div>
   <div id="home-adm-watch" style="display:none; margin-bottom:14px;"></div>
+  <div id="home-ai-cost-alert" style="display:none; margin-bottom:14px;"></div>
+  <div id="home-health-alert" style="display:none; margin-bottom:14px;"></div>
   <div id="live-band" style="margin-bottom:14px;"></div>
 
   <div id="today-ring-card" class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
@@ -1263,6 +1270,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
       <div class="form-row">
         <label class="lbl">使用するAIモデル</label>
         <select id="set-model">
+          <option value="auto">おまかせ（自動・コスト最適）</option>
           <option value="gemini-3.8-flash">Gemini 3.8 Flash ⭐ (最新・推奨)</option>
           <option value="gemini-4-argon">Gemini 4 Argon 💎 (最高性能・有料プランのみ・高額)</option>
           <option value="gemini-3.6-flash">Gemini 3.6 Flash (バランス型・低価格)</option>
@@ -1271,8 +1279,14 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
           <option value="gemini-2.5-flash">Gemini 2.5 Flash (旧安定版)</option>
         </select>
         <div id="gemini-pricing-note" style="font-size:11px;line-height:1.6;color:var(--muted);margin-top:4px">💎 Gemini 4 Argon は無料枠では使えません（APIキーが有料プランのときだけ動きます）。料金は100万トークンあたり入力$2・出力$10で、2026年12月1日から入力$4・出力$20に上がります（Google公式の料金表・2026年10月時点）。Web検索は月5,000回まで無料（Gemini 3以降のモデル全体での合計）。</div>
+        <div id="model-mode-note" style="font-size:11px;line-height:1.6;color:var(--muted);margin-top:4px"></div>
       </div>
-      
+
+      <div class="form-row">
+        <label class="lbl">🤖 AI利用量</label>
+        <div id="ai-usage-c"><div style="font-size:12px;color:var(--muted)">読み込み中…</div></div>
+      </div>
+
       <button class="btn btn-p" onclick="saveSettings()">設定を保存する</button>
 
       <div class="divider"></div>
@@ -1327,6 +1341,9 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
       <div class="divider"></div>
       <div style="font-size:12px;font-weight:700;margin-bottom:6px">🐞 エラーログ</div>
       <div id="errorlog-c"></div>
+      <div class="divider"></div>
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px">🩺 サーバー診断（自動バックアップ・健全性チェック）</div>
+      <div id="server-diag-c"><div style="font-size:12px;color:var(--muted)">読み込み中…</div></div>
     </div>
   </div>
 </div>
@@ -1578,6 +1595,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
 <script src="js/16-live.js"></script>
 <script src="js/17-money.js"></script>
 <script src="js/18-push.js"></script>
+<script src="js/19-server.js"></script>
 <script src="js/11-boot.js"></script>
 </body>
 </html>
