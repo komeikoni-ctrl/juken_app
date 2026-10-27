@@ -91,7 +91,48 @@ const MoneyFeed = {
     return list.find(s => s.month === ym) || list[list.length - 1];
   },
   sumValues: (arr) => (Array.isArray(arr) ? arr : []).reduce((s, x) => s + (Number(x?.value_in_jpy) || 0), 0),
-  pct: (part, total) => (total > 0 ? Math.round((Number(part) || 0) / total * 100) : 0)
+  pct: (part, total) => (total > 0 ? Math.round((Number(part) || 0) / total * 100) : 0),
+
+  // ---- 家計簿（明細） ----
+  // データのある月（'YYYY-MM'）を新しい順に返す
+  kakeiboMonths: (data) => {
+    const months = data?.kakeibo?.months;
+    if (!months || typeof months !== 'object') return [];
+    return Object.keys(months).filter(ym => Array.isArray(months[ym]) && months[ym].length).sort().reverse();
+  },
+  kakeiboList: (data, ym) => {
+    const list = data?.kakeibo?.months?.[ym];
+    return Array.isArray(list) ? list : [];
+  },
+  // 月の明細から支出・入金合計とカテゴリ別（支出のみ）内訳を作る
+  kakeiboTotals: (list) => {
+    let out = 0, inn = 0;
+    const by = {};
+    (Array.isArray(list) ? list : []).forEach(x => {
+      const a = Number(x?.amount) || 0;
+      if (x?.io === 'in') { inn += a; return; }
+      out += a;
+      const c = x?.cat || 'その他';
+      by[c] = (by[c] || 0) + a;
+    });
+    const cats = Object.entries(by).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount);
+    return { out, inn, cats };
+  }
+};
+
+// 家計簿の表示状態（メモリ上だけ。Sや同期データには載せない）
+const MoneyKb = {
+  ym: null,       // 選択中の月。null なら最新の月
+  showAll: false, // 明細を全件出すか（初期は直近30件）
+  setYm: (ym) => { MoneyKb.ym = ym; MoneyKb.showAll = false; MoneyKb.rerender(); },
+  toggleAll: () => { MoneyKb.showAll = !MoneyKb.showAll; MoneyKb.rerender(); },
+  rerender: () => {
+    const root = document.getElementById('money-root');
+    const entry = MoneyFeed.cache.read();
+    if (!root || !entry?.data) return;
+    root.innerHTML = MoneyView.html(entry.data);
+    root.dataset.rendered = '1';
+  }
 };
 
 const MoneyView = {
@@ -192,7 +233,42 @@ MoneyView.html = (data) => {
       `<div class="muted" style="font-size:11px;margin-top:8px">銀行・証券の連携分（マネーフォワード ME のカテゴリ集計）。PayPay払いは下の PayPay 欄を見てください。</div></div>`;
   }
 
-  // ④ PayPay（CSVスナップショット）
+  // ④ 家計簿（月別の明細）
+  const kbMonths = MoneyFeed.kakeiboMonths(data);
+  if (kbMonths.length) {
+    const selYm = (MoneyKb.ym && kbMonths.includes(MoneyKb.ym)) ? MoneyKb.ym : kbMonths[0];
+    const list = MoneyFeed.kakeiboList(data, selYm);
+    const tot = MoneyFeed.kakeiboTotals(list);
+    const shown = MoneyKb.showAll ? list : list.slice(0, 30);
+    const chips = kbMonths.map(ym =>
+      `<button type="button" onclick="MoneyKb.setYm('${ym}')" style="padding:5px 12px;border-radius:999px;border:1px solid var(--border);font:inherit;font-size:12px;font-weight:700;cursor:pointer;${ym === selYm ? 'background:var(--accent);color:#fff;border-color:var(--accent)' : 'background:transparent;color:var(--muted)'}">${esc(MoneyView.ymLabel(ym))}</button>`).join('');
+    const rowHtml = (x) => {
+      const isIn = x.io === 'in';
+      const d = String(x.date || '');
+      const md = /^\d{4}-(\d{2})-(\d{2})$/.test(d) ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : d;
+      return `<div class="row" style="align-items:flex-start">
+        <div class="muted" style="font-size:11px;flex:none;width:34px;padding-top:2px">${esc(md)}</div>
+        <div class="row-title" style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.title || '')}</div>
+          <div class="muted" style="font-size:11px">${esc(x.cat || 'その他')}${x.src ? ` ・ ${esc(x.src)}` : ''}</div>
+        </div>
+        <div style="text-align:right;flex:none;margin-left:8px;font-size:13px;font-weight:800;color:${isIn ? 'var(--a3)' : 'inherit'}">${isIn ? '+' : '-'}${MoneyView.yen(x.amount).replace('-', '')}</div>
+      </div>`;
+    };
+    h += `<div class="card"><div class="card-hdr"><span class="card-hdr-title">📒 家計簿</span><span class="muted" style="font-size:11px">${list.length}件</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${chips}</div>
+      <div class="g2" style="margin-bottom:6px">
+        <div class="stat"><div class="stat-v" style="font-size:19px">${MoneyView.yen(tot.out)}</div><div class="stat-l">支出</div></div>
+        <div class="stat"><div class="stat-v" style="font-size:19px;color:var(--a3)">${MoneyView.yen(tot.inn)}</div><div class="stat-l">入金</div></div>
+      </div>` +
+      (tot.cats.length ? tot.cats.slice(0, 6).map(c => MoneyView.row(c.name, '', c.amount, MoneyFeed.pct(c.amount, tot.out), 'var(--a2)')).join('') : '') +
+      `<div style="font-size:12px;font-weight:700;margin:12px 0 2px">明細（新しい順）</div>` +
+      (shown.length ? shown.map(rowHtml).join('') : '<div class="empty">この月の明細はまだありません</div>') +
+      (list.length > 30 ? `<button type="button" class="btn ghost" style="width:100%;margin-top:8px" onclick="MoneyKb.toggleAll()">${MoneyKb.showAll ? '直近30件だけ見る' : `ぜんぶ見る（${list.length}件）`}</button>` : '') +
+      `<div class="muted" style="font-size:11px;margin-top:8px">銀行（楽天銀行・PayPay銀行）の明細と PayPay の支払い・送金を合わせたものです。PayPayへのチャージは、二重に数えないため明細に入れていません。</div></div>`;
+  }
+
+  // ⑤ PayPay（CSVスナップショット）
   const pp = data.paypay;
   if (pp && Array.isArray(pp.monthlyPayments) && pp.monthlyPayments.length) {
     const months = pp.monthlyPayments.slice(-6);

@@ -479,6 +479,33 @@ SelfTest.add('お金: 証券の切り分け・割合・月の集計', () => {
   assertEq(MoneyFeed.monthSummary({ summaries: [] }, '2026-10'), null, '集計が無ければ null');
 });
 
+SelfTest.add('お金: 家計簿の月別集計と明細描画', () => {
+  const data = {
+    total: 1000, categories: [], holdings: [], summaries: [],
+    kakeibo: { months: {
+      '2026-09': [
+        { date: '2026-09-10', title: 'ローソン', cat: '食費', src: 'PayPay', io: 'out', amount: 520 }
+      ],
+      '2026-10': [
+        { date: '2026-10-05', title: '給料', cat: '収入', src: '楽天銀行', io: 'in', amount: 40000 },
+        { date: '2026-10-03', title: 'APPLE COM BILL', cat: '通信費', src: 'PayPay銀行', io: 'out', amount: 3499 },
+        { date: '2026-10-01', title: 'ローソン', cat: '食費', src: 'PayPay', io: 'out', amount: 520 }
+      ]
+    }, truncated: [] }
+  };
+  assertEq(JSON.stringify(MoneyFeed.kakeiboMonths(data)), JSON.stringify(['2026-10', '2026-09']), '家計簿の月は新しい順');
+  assertEq(MoneyFeed.kakeiboMonths({}), JSON.stringify([]), '家計簿が無ければ空');
+  const tot = MoneyFeed.kakeiboTotals(MoneyFeed.kakeiboList(data, '2026-10'));
+  assertEq(tot.out, 4019, '10月の支出は 3499+520=4019');
+  assertEq(tot.inn, 40000, '10月の入金は40000');
+  assertEq(tot.cats[0].name, '通信費', 'カテゴリ別は大きい順');
+  const html = MoneyView.html(data);
+  assert(html.includes('家計簿'), '家計簿セクションが出ること');
+  assert(html.includes('APPLE COM BILL'), '明細のタイトルが出ること');
+  assert(html.includes('PayPay銀行'), '明細の出所が出ること');
+  assertEq(MoneyView.html({ total: 0, categories: [], holdings: [], summaries: [] }).includes('家計簿'), false, '家計簿データが無ければセクションを出さない');
+});
+
 SelfTest.add('見た目のスタイル: ぷっくりポップの切替', () => {
   const html = document.documentElement;
   const before = html.getAttribute('data-style');
