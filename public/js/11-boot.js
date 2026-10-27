@@ -443,6 +443,42 @@ SelfTest.add('モデルの自動切替: 系統・保存値・チャット用だ�
   }
 });
 
+SelfTest.add('お金: Firestoreドキュメントの解釈', () => {
+  const data = { total: 28088, categories: [{ name: '普通預金', amount: 22290, accounts: [] }], holdings: [], summaries: [], paypay: null };
+  const raw = { fields: { money: { stringValue: JSON.stringify(data) }, updatedAt: { timestampValue: '2026-10-27T01:32:51Z' } } };
+  const parsed = MoneyFeed._parseDoc(raw);
+  assertEq(parsed.total, 28088, '総資産が解釈できること');
+  assertEq(MoneyFeed._parseDoc({ fields: {} }), null, 'money字段が無ければ null');
+  assertEq(MoneyFeed._parseDoc({ fields: { money: { stringValue: '{"total":"x"}' } } }), null, 'total が数でなければ null');
+  assertEq(MoneyFeed._parseDoc(null), null, 'null は null');
+});
+
+SelfTest.add('お金: 証券の切り分け・割合・月の集計', () => {
+  const data = {
+    total: 28088,
+    categories: [],
+    holdings: [
+      { name: '円預金(普通預金)', asset_category: '普通預金', institution_name: '楽天銀行', current_value: 15421 },
+      { name: 'eMAXIS Slim 米国株式(S&P500)', asset_category: '投資信託', institution_name: '楽天証券', current_value: 2359 },
+      { name: 'eMAXIS Slim 全世界株式(オルカン)', asset_category: '投資信託', institution_name: '楽天証券', current_value: 2335 },
+      { name: 'ゴールド・ファンド(為替ヘッジなし)', asset_category: '投資信託', institution_name: '楽天証券', current_value: 1104 }
+    ],
+    summaries: [
+      { month: '2026-09', income: [], expenses: [{ category_name: '食費', value_in_jpy: 100 }] },
+      { month: '2026-10', income: [{ category_name: '収入', value_in_jpy: 6 }], expenses: [{ category_name: '通信費', value_in_jpy: 10749 }, { category_name: '現金・カード', value_in_jpy: 14000 }] }
+    ]
+  };
+  const sec = MoneyFeed.securities(data);
+  assertEq(sec.list.length, 3, '証券は預金を除いた3件');
+  assertEq(sec.total, 5798, '証券合計が 2359+2335+1104=5798');
+  assertEq(MoneyFeed.pct(2359, 5798), 41, 'S&P500 の割合は約41%');
+  assertEq(MoneyFeed.pct(10, 0), 0, '合計0の割合は0');
+  const ms = MoneyFeed.monthSummary(data, '2026-10');
+  assertEq(MoneyFeed.sumValues(ms.expenses), 24749, '10月の支出合計');
+  assertEq(MoneyFeed.monthSummary(data, '2026-12').month, '2026-10', '無い月は最新の月で代用');
+  assertEq(MoneyFeed.monthSummary({ summaries: [] }, '2026-10'), null, '集計が無ければ null');
+});
+
 SelfTest.add('見た目のスタイル: ぷっくりポップの切替', () => {
   const html = document.documentElement;
   const before = html.getAttribute('data-style');
