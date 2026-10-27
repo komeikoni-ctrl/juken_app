@@ -523,7 +523,7 @@ SelfTest.add('お金: サブタブ切替でセクションが絞られる', () =
     kakeibo: { months: { '2026-10': [{ date: '2026-10-01', title: 'ローソン', cat: '食費', src: 'PayPay', io: 'out', amount: 520 }] }, truncated: [] },
     paypay: { monthlyPayments: [{ month: '2026-10', amount: 13686, count: 30 }], topMerchants: [{ name: 'ローソン', count: 10, amount: 5000 }], periodFrom: '2024-10-27', periodTo: '2026-10-27', totalPayments: 247033, paymentCount: 100 }
   };
-  const marks = { total: '💰 総資産', accounts: '🏦 口座・資産ごと', securities: '📈 証券・投資信託', expenses: 'の支出', paypay: '📱 PayPay の支払い', kakeibo: '📒 家計簿' };
+  const marks = { total: '💰 総資産', accounts: '🏦 口座・資産ごと', securities: '📈 証券・投資信託', expenses: 'の支出', paypay: '📱 PayPay の支払い', kakeibo: '📒 家計簿', subs: '🔁 サブスク' };
   try {
     // ホームは全セクションを含む
     const home = MoneyView.html(data, 'home');
@@ -534,12 +534,13 @@ SelfTest.add('お金: サブタブ切替でセクションが絞られる', () =
       yes.forEach(m => assert(h.includes(marks[m]), `${tab} タブに ${m} が含まれること`));
       no.forEach(m => assert(!h.includes(marks[m]), `${tab} タブに ${m} が含まれないこと`));
     };
-    only('accounts', ['total', 'accounts'], ['securities', 'expenses', 'paypay', 'kakeibo']);
-    only('securities', ['securities'], ['total', 'accounts', 'expenses', 'paypay', 'kakeibo']);
-    only('expenses', ['expenses'], ['total', 'accounts', 'securities', 'paypay', 'kakeibo']);
-    only('paypay', ['paypay'], ['total', 'accounts', 'securities', 'expenses', 'kakeibo']);
-    only('kakeibo', ['kakeibo'], ['total', 'accounts', 'securities', 'expenses', 'paypay']);
-    // タブバー: 6つのタブが出て、アクティブは1つだけ。
+    only('accounts', ['total', 'accounts'], ['securities', 'expenses', 'paypay', 'kakeibo', 'subs']);
+    only('securities', ['securities'], ['total', 'accounts', 'expenses', 'paypay', 'kakeibo', 'subs']);
+    only('expenses', ['expenses'], ['total', 'accounts', 'securities', 'paypay', 'kakeibo', 'subs']);
+    only('paypay', ['paypay'], ['total', 'accounts', 'securities', 'expenses', 'kakeibo', 'subs']);
+    only('kakeibo', ['kakeibo'], ['total', 'accounts', 'securities', 'expenses', 'paypay', 'subs']);
+    only('subs', ['subs'], ['total', 'accounts', 'securities', 'expenses', 'paypay', 'kakeibo']);
+    // タブバー: 全タブが出て、アクティブは1つだけ。
     // 見た目はアプリ標準のページ内切替（模試表タブと同じ .btn btn-sm、アクティブ=btn-p / 他=btn-s）
     MoneyTab.current = 'paypay';
     const tabs = MoneyView.tabsHtml();
@@ -555,6 +556,28 @@ SelfTest.add('お金: サブタブ切替でセクションが絞られる', () =
   } finally {
     MoneyTab.current = 'home';
   }
+});
+
+SelfTest.add('お金: ホームに家計簿とサブスクの両セクションが含まれる', () => {
+  const saved = S.moneySubs;
+  try {
+    S.moneySubs = { seeded: true, items: [{ id: 'h1', name: 'ホーム確認用サブスク', amount: 1500, cycle: 'month', nextDate: '2026-11-15', memo: '' }] };
+    const data = {
+      total: 1000, categories: [], holdings: [],
+      summaries: [{ month: '2026-10', income: [], expenses: [{ category_name: '通信費', value_in_jpy: 100 }] }],
+      kakeibo: { months: { '2026-10': [{ date: '2026-10-01', title: 'ローソン', cat: '食費', src: 'PayPay', io: 'out', amount: 520 }] }, truncated: [] },
+      paypay: { monthlyPayments: [{ month: '2026-10', amount: 520, count: 1 }], topMerchants: [], periodFrom: '2026-10-01', periodTo: '2026-10-27', totalPayments: 520, paymentCount: 1 }
+    };
+    const home = MoneyView.html(data, 'home');
+    assert(home.includes('📒 家計簿'), 'ホームに家計簿セクションがあること');
+    assert(home.includes('🔁 サブスク'), 'ホームにサブスクセクションがあること');
+    assert(home.includes('ホーム確認用サブスク'), 'ホームのサブスクに登録内容が出ること');
+    assert(home.includes('月額換算の合計'), 'ホームのサブスクに合計が出ること');
+    assert(home.includes("MoneySubs.openEdit('h1')") && home.includes("MoneySubs.askRemove('h1')"), 'ホームのサブスクから編集・削除できること');
+    assert(home.includes('MoneySubs.openNew()'), 'ホームのサブスクから追加できること');
+    const iKb = home.indexOf('📒 家計簿'), iSub = home.indexOf('🔁 サブスク'), iPp = home.indexOf('📱 PayPay の支払い');
+    assert(iKb >= 0 && iSub > iKb && iPp > iSub, 'ホームの並びが 家計簿→サブスク→PayPay であること');
+  } finally { S.moneySubs = saved; }
 });
 
 SelfTest.add('お金: 支出は月ごとに切り替えられる', () => {
