@@ -738,6 +738,29 @@ SelfTest.add('カレンダー: 今月ボタンで現在月へ戻れる', () => {
   } finally { S.calMonth = saved; if (typeof renderCal === 'function') renderCal(); }
 });
 
+SelfTest.add('カレンダー: 今週ボタンで現在週へ戻れる', () => {
+  const saved = weekOffset;
+  try {
+    weekOffset = 3;
+    chWeekToday();
+    assertEq(weekOffset, 0, '今週ボタンで weekOffset が 0 に戻ること');
+    weekOffset = -2;
+    chWeekToday();
+    assertEq(weekOffset, 0, '過去の週からも今週へ戻れること');
+  } finally { weekOffset = saved; if (typeof renderWeek === 'function') renderWeek(); }
+});
+
+SelfTest.add('分析: AI評価カレンダーの今月ボタンで現在月へ戻れる', () => {
+  const saved = evalCalMonth;
+  try {
+    evalCalMonth = new Date(2025, 0, 1);
+    chEvalToday();
+    const now = new Date();
+    assertEq(evalCalMonth.getFullYear(), now.getFullYear(), '今月ボタンの年');
+    assertEq(evalCalMonth.getMonth(), now.getMonth(), '今月ボタンの月');
+  } finally { evalCalMonth = saved; if (typeof renderCoachHistory === 'function') renderCoachHistory(); }
+});
+
 SelfTest.add('サブスク: 初期投入は1回だけ・削除は復活しない', () => {
   const saved = S.moneySubs;
   try {
