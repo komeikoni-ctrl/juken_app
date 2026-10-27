@@ -494,7 +494,7 @@ SelfTest.add('お金: 家計簿の月別集計と明細描画', () => {
     }, truncated: [] }
   };
   assertEq(JSON.stringify(MoneyFeed.kakeiboMonths(data)), JSON.stringify(['2026-10', '2026-09']), '家計簿の月は新しい順');
-  assertEq(MoneyFeed.kakeiboMonths({}), JSON.stringify([]), '家計簿が無ければ空');
+  assertEq(MoneyFeed.kakeiboMonths({}), [], '家計簿が無ければ空');
   const tot = MoneyFeed.kakeiboTotals(MoneyFeed.kakeiboList(data, '2026-10'));
   assertEq(tot.out, 4019, '10月の支出は 3499+520=4019');
   assertEq(tot.inn, 40000, '10月の入金は40000');
@@ -504,6 +504,54 @@ SelfTest.add('お金: 家計簿の月別集計と明細描画', () => {
   assert(html.includes('APPLE COM BILL'), '明細のタイトルが出ること');
   assert(html.includes('PayPay銀行'), '明細の出所が出ること');
   assertEq(MoneyView.html({ total: 0, categories: [], holdings: [], summaries: [] }).includes('家計簿'), false, '家計簿データが無ければセクションを出さない');
+});
+
+SelfTest.add('お金: サブタブ切替でセクションが絞られる', () => {
+  const data = {
+    total: 28088,
+    categories: [
+      { name: '普通預金', amount: 22290, accounts: [{ name: '楽天銀行', amount: 15421 }, { name: 'PayPay銀行', amount: 6869 }] },
+      { name: '投資信託', amount: 5798, accounts: [{ name: '楽天証券', amount: 5798 }] }
+    ],
+    holdings: [
+      { name: '円預金(普通預金)', asset_category: '普通預金', institution_name: '楽天銀行', current_value: 15421 },
+      { name: 'eMAXIS Slim 米国株式(S&P500)', asset_category: '投資信託', institution_name: '楽天証券', current_value: 2359 }
+    ],
+    summaries: [
+      { month: '2026-10', income: [], expenses: [{ category_name: '通信費', value_in_jpy: 10749 }] }
+    ],
+    kakeibo: { months: { '2026-10': [{ date: '2026-10-01', title: 'ローソン', cat: '食費', src: 'PayPay', io: 'out', amount: 520 }] }, truncated: [] },
+    paypay: { monthlyPayments: [{ month: '2026-10', amount: 13686, count: 30 }], topMerchants: [{ name: 'ローソン', count: 10, amount: 5000 }], periodFrom: '2024-10-27', periodTo: '2026-10-27', totalPayments: 247033, paymentCount: 100 }
+  };
+  const marks = { total: '💰 総資産', accounts: '🏦 口座・資産ごと', securities: '📈 証券・投資信託', expenses: 'の支出', paypay: '📱 PayPay の支払い', kakeibo: '📒 家計簿' };
+  try {
+    // ホームは全セクションを含む
+    const home = MoneyView.html(data, 'home');
+    Object.values(marks).forEach(m => assert(home.includes(m), `ホームに ${m} が含まれること`));
+    // 各タブは該当セクションのみ（口座タブは総資産＋口座）
+    const only = (tab, yes, no) => {
+      const h = MoneyView.html(data, tab);
+      yes.forEach(m => assert(h.includes(marks[m]), `${tab} タブに ${m} が含まれること`));
+      no.forEach(m => assert(!h.includes(marks[m]), `${tab} タブに ${m} が含まれないこと`));
+    };
+    only('accounts', ['total', 'accounts'], ['securities', 'expenses', 'paypay', 'kakeibo']);
+    only('securities', ['securities'], ['total', 'accounts', 'expenses', 'paypay', 'kakeibo']);
+    only('expenses', ['expenses'], ['total', 'accounts', 'securities', 'paypay', 'kakeibo']);
+    only('paypay', ['paypay'], ['total', 'accounts', 'securities', 'expenses', 'kakeibo']);
+    only('kakeibo', ['kakeibo'], ['total', 'accounts', 'securities', 'expenses', 'paypay']);
+    // タブバー: 6つのタブが出て、アクティブは1つだけ
+    MoneyTab.current = 'paypay';
+    const tabs = MoneyView.tabsHtml();
+    MoneyTab.TABS.forEach(t => assert(tabs.includes(`MoneyTab.set('${t.id}')`), `タブバーに ${t.id} があること`));
+    assertEq(tabs.split('background:var(--accent)').length - 1, 1, 'アクティブなタブは1つだけ');
+    // 現在のタブが保持される: 引数なしの描画は選択中タブ（PayPay）で描かれる
+    const cur = MoneyView.html(data);
+    assert(cur.includes(marks.paypay) && !cur.includes(marks.total), '再描画でタブがホームに戻らないこと');
+    // 知らないタブ名は現在のタブで描く
+    assert(MoneyView.html(data, 'unknown-tab').includes(marks.paypay), '不正なタブ名は現在のタブにフォールバック');
+  } finally {
+    MoneyTab.current = 'home';
+  }
 });
 
 SelfTest.add('見た目のスタイル: ぷっくりポップの切替', () => {
