@@ -638,6 +638,83 @@ SelfTest.add('お金: 月移動バーの‹›とプルダウンで月が切り�
   }
 });
 
+SelfTest.add('お金: 金額マスクは描画から金額を消す', () => {
+  const data = {
+    total: 28088,
+    categories: [{ name: '普通預金', amount: 22290, accounts: [{ name: '楽天銀行', amount: 15421 }] }],
+    holdings: [{ name: 'eMAXIS Slim 米国株式(S&P500)', asset_category: '投資信託', institution_name: '楽天証券', current_value: 2359 }],
+    summaries: [{ month: '2026-10', income: [], expenses: [{ category_name: '通信費', value_in_jpy: 10749 }] }],
+    kakeibo: { months: { '2026-10': [{ date: '2026-10-01', title: 'ローソン', cat: '食費', src: 'PayPay', io: 'out', amount: 520 }] }, truncated: [] },
+    paypay: { monthlyPayments: [{ month: '2026-10', amount: 13686, count: 30 }], topMerchants: [{ name: 'ローソン', count: 10, amount: 5000 }], periodFrom: '2024-10-27', periodTo: '2026-10-27', totalPayments: 247033, paymentCount: 100 }
+  };
+  const saved = MoneyUi.masked;
+  try {
+    MoneyUi.masked = true;
+    const html = MoneyView.html(data, 'home');
+    ['¥28,088', '¥22,290', '¥15,421', '¥2,359', '¥10,749', '¥520', '¥13,686', '¥5,000', '¥247,033'].forEach(a =>
+      assert(!html.includes(a), `マスク時は ${a} が描画されないこと`));
+    assert(html.includes('¥•••'), 'マスク時は ¥••• が出ること');
+    assert(html.includes('ローソン') && html.includes('食費'), 'マスクしても銘柄・カテゴリ・件名は残ること');
+    MoneyUi.masked = false;
+    assert(MoneyView.html(data, 'home').includes('¥28,088'), 'マスクOFFでは総資産が出ること');
+  } finally { MoneyUi.masked = saved; }
+});
+
+SelfTest.add('お金: 家計簿の検索・出所フィルタ', () => {
+  const list = [
+    { date: '2026-10-03', title: 'APPLE COM BILL', cat: '通信費', src: 'PayPay銀行', io: 'out', amount: 3499 },
+    { date: '2026-10-01', title: 'ローソン', cat: '食費', src: 'PayPay', io: 'out', amount: 520 },
+    { date: '2026-10-05', title: '給料', cat: '収入', src: '楽天銀行', io: 'in', amount: 40000 }
+  ];
+  assertEq(JSON.stringify(MoneyFeed.kakeiboSources(list)), JSON.stringify(['PayPay銀行', 'PayPay', '楽天銀行']), '出所一覧が出現順');
+  assertEq(MoneyFeed.kakeiboFilter(list, '', 'all').length, 3, 'フィルタ無しは全件');
+  assertEq(MoneyFeed.kakeiboFilter(list, 'ローソン', 'all').length, 1, 'タイトル部分一致で絞れること');
+  assertEq(MoneyFeed.kakeiboFilter(list, 'apple', 'all').length, 1, '検索は大小文字を区別しないこと');
+  assertEq(MoneyFeed.kakeiboFilter(list, '', 'PayPay').length, 1, '出所で絞れること');
+  assertEq(MoneyFeed.kakeiboFilter(list, 'ローソン', 'PayPay銀行').length, 0, '検索と出所はAND条件');
+  assertEq(MoneyFeed.kakeiboTotals(MoneyFeed.kakeiboFilter(list, 'ローソン', 'all')).out, 520, 'フィルタ後の支出合計が追従すること');
+  const data = { total: 0, categories: [], holdings: [], summaries: [], kakeibo: { months: { '2026-10': list }, truncated: [] } };
+  try {
+    MoneyKb.ym = '2026-10'; MoneyKb.query = 'ローソン'; MoneyKb.src = 'all'; MoneyKb.showAll = false;
+    const html = MoneyView.html(data, 'kakeibo');
+    assert(html.includes('ローソン') && !html.includes('APPLE COM BILL'), '描画が検索で絞られること');
+    assert(html.includes('絞り込み中') && html.includes('MoneyKb.clearFilter()'), '絞り込み中の表示と解除方法が出ること');
+    assert(html.includes('1件（全3件中）'), 'フィルタ後の件数が追従すること');
+  } finally { MoneyKb.query = ''; MoneyKb.src = 'all'; MoneyKb.ym = null; MoneyKb.showAll = false; }
+});
+
+SelfTest.add('お金: 支出カテゴリに割合バー・前月比が出る', () => {
+  const data = {
+    total: 0, categories: [], holdings: [],
+    summaries: [
+      { month: '2026-09', income: [], expenses: [{ category_name: '食費', value_in_jpy: 5337 }, { category_name: '通信費', value_in_jpy: 9000 }] },
+      { month: '2026-10', income: [], expenses: [{ category_name: '通信費', value_in_jpy: 10749 }, { category_name: '現金・カード', value_in_jpy: 14000 }] }
+    ]
+  };
+  const cmp = MoneyFeed.prevMonthCompare(data, '2026-10');
+  assertEq(cmp.prevYm, '2026-09', '前月は2026-09');
+  assertEq(cmp.diff, 24749 - 14337, '前月比の差額');
+  assertEq(MoneyFeed.prevMonthCompare(data, '2026-09'), null, '前月データが無い月は前月比が出ないこと');
+  try {
+    MoneyExp.ym = '2026-10';
+    const html = MoneyView.html(data, 'expenses');
+    assert(html.includes('前月比') && html.includes('+¥10,412'), '支出セクションに前月比が出ること');
+    assert(html.includes('height:6px'), '支出カテゴリに割合バーが出ること');
+    assert(html.includes('57%') || html.includes('43%'), '支出カテゴリに割合%が出ること');
+  } finally { MoneyExp.ym = null; }
+});
+
+SelfTest.add('カレンダー: 今月ボタンで現在月へ戻れる', () => {
+  const saved = S.calMonth;
+  try {
+    S.calMonth = new Date(2025, 0, 1);
+    chCalToday();
+    const now = new Date();
+    assertEq(S.calMonth.getFullYear(), now.getFullYear(), '今月ボタンの年');
+    assertEq(S.calMonth.getMonth(), now.getMonth(), '今月ボタンの月');
+  } finally { S.calMonth = saved; if (typeof renderCal === 'function') renderCal(); }
+});
+
 SelfTest.add('お金: 家計簿は12か月以上の月と要約月を扱える', () => {
   // 14か月分の明細があるデータ（2025-09〜2026-10）
   const months = {};
