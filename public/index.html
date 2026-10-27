@@ -769,7 +769,7 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
   </div>
 </div>
   <div class="expand-section"><div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📆 月カレンダー</div><span class="expand-arrow">▼</span></div><div class="expand-body open"><div class="flex-between" style="margin-bottom:12px"><button class="btn btn-s btn-sm" onclick="chMonth(-1)">‹ 前月</button><strong id="cal-title" style="font-size:15px"></strong><span style="display:flex;gap:6px"><button class="btn btn-s btn-sm" onclick="chCalToday()">今月</button><button class="btn btn-s btn-sm" onclick="chMonth(1)">翌月 ›</button></span></div><div class="cal-grid" id="cal-head"></div><div class="cal-grid" id="cal-body" style="margin-top:4px"></div></div></div>
-  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">📋 週表示</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div class="flex-between" style="margin-bottom:10px"><button class="btn btn-s btn-sm" onclick="chWeek(-1)">‹ 前週</button><strong id="week-title" style="font-size:14px"></strong><button class="btn btn-s btn-sm" onclick="chWeek(1)">翌週 ›</button></div><div class="week-scroll" id="week-wrap"></div></div></div>
+  <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">📋 週表示</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div class="flex-between" style="margin-bottom:10px"><button class="btn btn-s btn-sm" onclick="chWeek(-1)">‹ 前週</button><strong id="week-title" style="font-size:14px"></strong><span style="display:flex;gap:6px"><button class="btn btn-s btn-sm" onclick="chWeekToday()">今週</button><button class="btn btn-s btn-sm" onclick="chWeek(1)">翌週 ›</button></span></div><div class="week-scroll" id="week-wrap"></div></div></div>
   <div class="expand-section"><div class="expand-hdr" onclick="toggleExpand(this)"><div class="expand-title">🔁 繰り返し予定一覧</div><span class="expand-arrow">▼</span></div><div class="expand-body"><div id="repeat-ev-list"><div class="empty">繰り返し予定はありません</div></div></div></div>
 <div class="expand-section"><div class="expand-hdr open" onclick="toggleExpand(this)"><div class="expand-title">📝 予定一覧</div><span class="expand-arrow">▼</span></div><div class="expand-body open"><div id="ev-list"><div class="empty">予定がありません</div></div></div></div>
 </div>
@@ -883,7 +883,7 @@ html:root[data-style="pop"] .cal-day.today{ background:var(--pop-yellow); color:
       <div class="flex-between" style="margin-bottom:12px">
         <button class="btn btn-s btn-sm" onclick="chEvalMonth(-1)">‹ 前月</button>
         <strong id="eval-cal-title" style="font-size:15px"></strong>
-        <button class="btn btn-s btn-sm" onclick="chEvalMonth(1)">翌月 ›</button>
+        <span style="display:flex;gap:6px"><button class="btn btn-s btn-sm" onclick="chEvalToday()">今月</button><button class="btn btn-s btn-sm" onclick="chEvalMonth(1)">翌月 ›</button></span>
       </div>
       <div class="cal-grid" id="eval-cal-head"></div>
       <div class="cal-grid" id="eval-cal-body" style="margin-top:4px"></div>
