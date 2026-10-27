@@ -539,11 +539,14 @@ SelfTest.add('お金: サブタブ切替でセクションが絞られる', () =
     only('expenses', ['expenses'], ['total', 'accounts', 'securities', 'paypay', 'kakeibo']);
     only('paypay', ['paypay'], ['total', 'accounts', 'securities', 'expenses', 'kakeibo']);
     only('kakeibo', ['kakeibo'], ['total', 'accounts', 'securities', 'expenses', 'paypay']);
-    // タブバー: 6つのタブが出て、アクティブは1つだけ
+    // タブバー: 6つのタブが出て、アクティブは1つだけ。
+    // 見た目はアプリ標準のページ内切替（模試表タブと同じ .btn btn-sm、アクティブ=btn-p / 他=btn-s）
     MoneyTab.current = 'paypay';
     const tabs = MoneyView.tabsHtml();
     MoneyTab.TABS.forEach(t => assert(tabs.includes(`MoneyTab.set('${t.id}')`), `タブバーに ${t.id} があること`));
-    assertEq(tabs.split('background:var(--accent)').length - 1, 1, 'アクティブなタブは1つだけ');
+    assertEq(tabs.split(' btn-p"').length - 1, 1, 'アクティブなタブ（btn-p）は1つだけ');
+    assertEq(tabs.split(' btn-s"').length - 1, 5, '非アクティブなタブは btn-s で5つ');
+    assert(!tabs.includes('border-radius:999px'), '独自のピル型スタイルを使っていないこと');
     // 現在のタブが保持される: 引数なしの描画は選択中タブ（PayPay）で描かれる
     const cur = MoneyView.html(data);
     assert(cur.includes(marks.paypay) && !cur.includes(marks.total), '再描画でタブがホームに戻らないこと');
@@ -552,6 +555,71 @@ SelfTest.add('お金: サブタブ切替でセクションが絞られる', () =
   } finally {
     MoneyTab.current = 'home';
   }
+});
+
+SelfTest.add('お金: 支出は月ごとに切り替えられる', () => {
+  const data = {
+    total: 28088, categories: [], holdings: [],
+    summaries: [
+      { month: '2026-09', income: [{ category_name: '収入', value_in_jpy: 40000 }], expenses: [{ category_name: '食費', value_in_jpy: 5337 }] },
+      { month: '2026-10', income: [], expenses: [{ category_name: '通信費', value_in_jpy: 10749 }] }
+    ]
+  };
+  assertEq(JSON.stringify(MoneyFeed.summaryMonths(data)), JSON.stringify(['2026-10', '2026-09']), 'サマリの月は新しい順');
+  try {
+    MoneyExp.ym = '2026-09';
+    const sep = MoneyView.html(data, 'expenses');
+    assert(sep.includes('2026年9月の支出'), '選択した月の支出セクションになること');
+    assert(sep.includes('¥5,337'), '9月の支出合計が出ること');
+    assert(sep.includes(`MoneyExp.setYm('2026-10')`), '月切替のボタンが出ること');
+    MoneyExp.ym = '2026-10';
+    const oct = MoneyView.html(data, 'expenses');
+    assert(oct.includes('2026年10月の支出') && oct.includes('¥10,749'), '10月に切り替えられること');
+  } finally {
+    MoneyExp.ym = null;
+  }
+});
+
+SelfTest.add('お金: 家計簿は12か月以上の月と要約月を扱える', () => {
+  // 14か月分の明細があるデータ（2025-09〜2026-10）
+  const months = {};
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(2025, 8 + i, 1);
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    months[ym] = [{ date: `${ym}-05`, title: 'ローソン', cat: '食費', src: 'PayPay', io: 'out', amount: 500 }];
+  }
+  const data = { total: 0, categories: [], holdings: [], summaries: [], kakeibo: { months, truncated: [] } };
+  const ms = MoneyFeed.kakeiboMonths(data);
+  assertEq(ms.length, 14, '家計簿の月が14か月分あること');
+  assertEq(ms[0], '2026-10', '先頭は最新の月');
+  assertEq(ms[13], '2025-09', '末尾は最古の月');
+  // 明細が要約に置き換わった月も、月として選べて合計とカテゴリ別が出る
+  const data2 = {
+    total: 0, categories: [], holdings: [], summaries: [],
+    kakeibo: { months: {}, monthlySummary: { '2024-11': { count: 40, out: 50000, in: 3000, cats: [{ name: '食費', amount: 20000 }] } }, truncated: [] }
+  };
+  assertEq(JSON.stringify(MoneyFeed.kakeiboMonths(data2)), JSON.stringify(['2024-11']), '要約だけの月も月一覧に入ること');
+  const html = MoneyView.html(data2, 'kakeibo');
+  assert(html.includes('¥50,000'), '要約月の支出合計が出ること');
+  assert(html.includes('合計とカテゴリ別だけを表示しています'), '要約月はその旨が出ること');
+});
+
+SelfTest.add('ページ遷移: 横スワイプではページが移らない', () => {
+  // 横スワイプでのページ遷移は廃止した（ページ内の横スクロールと競合するため）。
+  // main 要素に横スワイプ相当のタッチ列を送っても、ページが切り替わらないことを確かめる
+  const main = document.querySelector('.main');
+  assert(!!main, 'main 要素があること');
+  const before = S.currentPage;
+  const fire = (type, x, y) => {
+    const ev = new Event(type, { bubbles: true, cancelable: true });
+    ev.touches = type === 'touchend' ? [] : [{ clientX: x, clientY: y }];
+    ev.changedTouches = [{ clientX: x, clientY: y }];
+    main.dispatchEvent(ev);
+  };
+  fire('touchstart', 320, 200);
+  fire('touchmove', 160, 200);
+  fire('touchend', 60, 200);
+  assertEq(S.currentPage, before, '横スワイプでページが切り替わらないこと');
 });
 
 SelfTest.add('見た目のスタイル: ぷっくりポップの切替', () => {
