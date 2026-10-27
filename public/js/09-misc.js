@@ -539,7 +539,7 @@ const applyTheme = (mode) => {
 (function(){
   const indicator = document.getElementById('nav-indicator');
   const main = document.querySelector('.main');
-  const tabOrder = ['home', 'timer', 'calendar', 'uni', 'apply', 'analytics', 'sunzemi', 'aicoach', 'settings'];
+  const tabOrder = ['home', 'timer', 'calendar', 'uni', 'apply', 'analytics', 'sunzemi', 'aicoach', 'money', 'settings'];
 
   // モーダルを閉じる
   window.closeAllMo = () => document.querySelectorAll('.mo').forEach(m => m.classList.remove('active'));
@@ -588,6 +588,7 @@ const applyTheme = (mode) => {
     if (id === 'analytics') { setTimeout(initAllCharts, 100); const wr = document.getElementById('weekly-rep'); if(wr && S.aiCoachLog.weeklyRepHtml) wr.innerHTML = S.aiCoachLog.weeklyRepHtml; if(typeof renderCoachHistory === 'function') renderCoachHistory(); if(typeof renderMilestones === 'function') renderMilestones(); if(typeof renderComparison === 'function') renderComparison(); }
     if (id === 'sunzemi') { if(typeof renderTT === 'function') renderTT(); if(typeof renderMockRecTbl === 'function') renderMockRecTbl(); if(typeof renderMockCalList === 'function') renderMockCalList(); if(typeof renderHwList === 'function') renderHwList(); if(typeof renderSpList === 'function') renderSpList(); if(typeof renderExtraList === 'function') renderExtraList(); if(typeof renderNotes === 'function') renderNotes(); }
     if (id === 'aicoach') { if(typeof window.evalDaily === 'function') window.evalDaily(false); if(typeof window.renderMorningPlan === 'function') window.renderMorningPlan(false); if(typeof renderChat === 'function') renderChat(); if(typeof window.renderTextbooks === 'function') window.renderTextbooks(); }
+    if (id === 'money') { if(typeof renderMoney === 'function') renderMoney(); }
     if (id === 'settings') {
       if(typeof renderSettings === 'function') renderSettings();
       if(typeof window.renderSubjectMerge === 'function') window.renderSubjectMerge();
