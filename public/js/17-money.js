@@ -624,19 +624,19 @@ MoneyView.sections = (data) => {
 
 // サブタブに応じた全体描画。tab を省略すると現在のタブ（MoneyTab.current）で描くので、
 // データ再取得・再描画のたびにホームへ戻ることはない。
-// ホームは従来通り全セクションをこの順で並べる: 総資産→口座・資産ごと→証券→今月の支出→家計簿→PayPay
+// ホームは全セクションをこの順で並べる: 総資産→口座・資産ごと→証券→今月の支出→家計簿→サブスク→PayPay
 MoneyView.html = (data, tab) => {
   const s = MoneyView.sections(data);
   const cur = MoneyTab.TABS.some(t => t.id === tab) ? tab : MoneyTab.current;
   const order = {
-    home: ['total', 'accounts', 'securities', 'expenses', 'kakeibo', 'paypay'],
+    home: ['total', 'accounts', 'securities', 'expenses', 'kakeibo', 'subs', 'paypay'],
     accounts: ['total', 'accounts'],
     securities: ['securities'],
     expenses: ['expenses'],
     paypay: ['paypay'],
     kakeibo: ['kakeibo'],
     subs: ['subs']
-  }[cur] || ['total', 'accounts', 'securities', 'expenses', 'kakeibo', 'paypay'];
+  }[cur] || ['total', 'accounts', 'securities', 'expenses', 'kakeibo', 'subs', 'paypay'];
   const body = order.map(k => s[k]).join('');
   return body || '<div class="card"><div class="empty">データがまだありません</div></div>';
 };
