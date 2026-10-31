@@ -609,6 +609,7 @@ const applyTheme = (mode) => {
     // ページごとの初期化（全ページ対応）
     if (id === 'home' && typeof renderHome === 'function') renderHome();
     if (id === 'timer' && typeof renderTimerLog === 'function') renderTimerLog();
+    if (id === 'timer' && typeof window.updateTimerDisp === 'function') setTimeout(() => window.updateTimerDisp(Math.max(0, window.T?.elapsed || 0)), 30);
     if (id === 'calendar') { weekOffset = 0; if(typeof renderCal === 'function') renderCal(); if(typeof renderWeek === 'function') renderWeek(); if(typeof renderRepeatList === 'function') renderRepeatList(); }
     if (id === 'uni') { if(typeof renderUniList === 'function') renderUniList(); if(typeof window.renderPrivSim === 'function') window.renderPrivSim(); if(typeof window.renderPastExams === 'function') window.renderPastExams(); if(typeof renderScoring === 'function') renderScoring(false); if(typeof renderTrend === 'function') renderTrend(false); }
     if (id === 'apply') { if(typeof window.renderApplications === 'function') window.renderApplications(); if(typeof window.renderExamPlan === 'function') window.renderExamPlan(); if(typeof window.renderKyotsu === 'function') window.renderKyotsu(); }

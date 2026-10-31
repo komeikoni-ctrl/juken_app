@@ -51,10 +51,7 @@ async function gatherBriefingMaterials(today) {
   m.upcoming = gen.upcomingEvents(today, 2);
   const kyotsu = m.upcoming.find(e => e.id === 'kyotsu-1');
   m.kyotsuDaysLeft = kyotsu ? kyotsu.daysLeft : gen.daysDiff(today, '2027-01-16');
-  const updates = await lib.fsGetJson(lib.WATCH_DOC, 'updates', []).catch(() => []);
-  const unread = (Array.isArray(updates) ? updates : []).filter(u => u && !u.read);
-  m.admUnread = unread.length;
-  m.admLatest = unread.length ? { uni: unread[0].uni, at: unread[0].at } : null;
+  // 入試情報の更新はブリーフィングの材料にしない（ホームに受験情報を出さないため。2026-10-31 こにの指示）
   const usage = await lib.fsGetJson(lib.AI_USAGE_DOC, 'usage', null).catch(() => null);
   if (usage) m.aiMonthCostYen = gen.monthUsageCostYen(usage, today.slice(0, 7));
   return m;
@@ -85,7 +82,6 @@ function briefingPrompt(m) {
   if (m.topSubjects && m.topSubjects.length) lines.push('- 累計の多い科目: ' + m.topSubjects.map(s => `${s.subject} ${s.minutes}分`).join(' / '));
   lines.push(`- 共通テストまで: あと${m.kyotsuDaysLeft}日`);
   for (const e of (m.upcoming || [])) lines.push(`- 直近の日程: ${e.label}（${e.date}、あと${e.daysLeft}日）`);
-  if (m.admUnread) lines.push(`- 入試情報の未読の更新: ${m.admUnread}件（最新: ${m.admLatest ? m.admLatest.uni : ''}）`);
   if (m.aiMonthCostYen != null) lines.push(`- 今月のAI利用料の概算: 約${m.aiMonthCostYen}円`);
   lines.push('材料に無い数字や予定は作らないこと。');
   return lines.join('\n');
