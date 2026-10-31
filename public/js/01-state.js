@@ -80,11 +80,16 @@ const taskAgeDays = (t, todayStr) => {
 const staleAutoTaskIds = (tasks, todayStr, keepDays = AUTO_TASK_KEEP_DAYS) =>
   (tasks || []).filter(t => t && !t.done && AUTO_TASK_RE.test(String(t.text || ''))
     && (taskAgeDays(t, todayStr) ?? -1) >= keepDays).map(t => t.id);
-// 片付けを実行し、消した件数を返す
+// 片付けを実行し、片付けた件数を返す。
+// 片付け＝ゴミ箱へ移す（30日間は復元できる）。完全削除はしない
+// （2026-10-31 こにの指示。ゴミ箱に入れられない状態では消さずに残す）。
 const cleanupStaleAutoTasks = () => {
   const ids = staleAutoTaskIds(S.tasks, DateManager.getTodayStr());
   if (!ids.length) return 0;
+  if (typeof Trash === 'undefined' || typeof Trash.push !== 'function') return 0;
   const drop = new Set(ids);
+  const targets = S.tasks.filter(t => drop.has(t.id));
+  targets.forEach(t => Trash.push('tasks', t));
   S.tasks = S.tasks.filter(t => !drop.has(t.id));
   ids.forEach(id => DbService.del('tasks', id));
   return ids.length;
