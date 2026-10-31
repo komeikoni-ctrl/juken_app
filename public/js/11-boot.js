@@ -1431,6 +1431,26 @@ SelfTest.add('入試情報ウォッチ: 未読の抽出とカード生成', () =
   assert(!html.includes('立命館大学'), '既読は出さない');
   assert(html.includes('&lt;悪意&gt;'), '大学名はエスケープされる');
   assertEq(AdmWatchUI._cardHtml(ups.map(u => ({ ...u, read: true }))), '', '全部既読ならカードなし');
+  const evil = AdmWatchUI._cardHtml([{ id: '9', uni: 'x', url: 'javascript:alert(1)', at: '2026-12-01T00:00:00Z', snippet: 's', read: false }]);
+  assert(!/href=/.test(evil) && !/javascript:/i.test(evil), 'http/https 以外のURLはリンクにしない');
+});
+
+SelfTest.add('タスク: 繰り越し日数と古い自動タスクの片付け対象', () => {
+  assertEq(taskAgeDays({ createdDate: '2026-10-30' }, '2026-10-31'), 1, '昨日作成なら1日');
+  assertEq(taskAgeDays({ createdDate: '2026-08-04' }, '2026-10-31'), 88, '月をまたいでも日数で数える');
+  assertEq(taskAgeDays({ createdDate: '2026-03-28' }, '2026-03-29'), 1, '夏時間の無い日付でも1日');
+  assertEq(taskAgeDays({}, '2026-10-31'), null, '作成日が無ければ null');
+  assertEq(taskAgeDays({ createdDate: 'こわれた' }, '2026-10-31'), null, '壊れた作成日は null');
+  const tasks = [
+    { id: 'a', text: '【復習】英語', done: false, createdDate: '2026-10-24' },  // 7日前 → 片付け
+    { id: 'b', text: '【予習】数学', done: false, createdDate: '2026-10-25' },  // 6日前 → 残す
+    { id: 'c', text: '【復習】古文', done: true,  createdDate: '2026-08-01' },  // 完了済み → 対象外
+    { id: 'd', text: '単語帳', done: false, createdDate: '2026-08-01' },        // 手入力 → 対象外
+    { id: 'e', text: '【予習】世界史', done: false },                           // 作成日なし → 対象外
+    { id: 'f', text: '【予習】倫理', done: false, createdDate: '2026-08-04' }   // 古い → 片付け
+  ];
+  assertEq(staleAutoTaskIds(tasks, '2026-10-31'), ['a', 'f'], '自動生成・未完了・7日以上だけ');
+  assertEq(staleAutoTaskIds(null, '2026-10-31'), [], 'null でも空配列');
 });
 
 SelfTest.add('AIモデル: おまかせ自動の振り分けと手動の尊重', () => {

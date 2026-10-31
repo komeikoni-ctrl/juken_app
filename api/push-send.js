@@ -10,8 +10,7 @@
 const lib = require('./_pushlib');
 
 const ALLOWED_ORIGINS = new Set([
-  'https://juken-app-sigma.vercel.app',
-  'https://komeikoni-ctrl.github.io'
+  'https://juken-app-sigma.vercel.app'
 ]);
 const VERCEL_ORIGIN_RE = /^https:\/\/juken-app(-[a-z0-9-]+)?\.vercel\.app$/;
 

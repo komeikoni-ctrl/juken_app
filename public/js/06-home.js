@@ -240,7 +240,9 @@ const renderTasks = () => {
   const sorted = sortedTasks();
   el.innerHTML = sorted.map((t, i) => {
     const origIdx = S.tasks.indexOf(t);
-    const isCarryover = t.createdDate && t.createdDate < todayStr && !t.done;
+    // 作成日からの日数で表示する（何週間も前のタスクまで「昨日から」と出ていた）
+    const age = taskAgeDays(t, todayStr);
+    const isCarryover = !t.done && age != null && age > 0;
     const isOverdue = !t.done && t.due && t.due < todayStr;
     const daysLeft = t.due ? DateManager.daysBetween(t.due) : null;
     const dueStr = t.due
@@ -248,7 +250,7 @@ const renderTasks = () => {
         : daysLeft === 0 ? `<span style="color:#c07010;font-size:10px;font-weight:700">📅 今日まで</span>`
         : `<span style="color:var(--muted);font-size:10px">📅 ${t.due}（あと${daysLeft}日）</span>`
       : '';
-    const carryBadge = isCarryover ? `<span class="badge by" style="font-size:10px;margin-right:4px">⬆️ 昨日から</span>` : '';
+    const carryBadge = isCarryover ? `<span class="badge by" style="font-size:10px;margin-right:4px">⬆️ ${age === 1 ? '昨日から' : age + '日前から'}</span>` : '';
     const subjBadge  = t.subj  ? `<span class="badge bb" style="font-size:10px;margin-right:4px">${esc(t.subj)}</span>` : '';
     const prioBadge  = (t.prio && t.prio !== 'mid') ? `<span style="font-size:11px;margin-right:2px">${prioLabel[t.prio]}</span>` : '';
     return `<div class="ci" draggable="true" data-id="${t.id}" data-idx="${origIdx}"

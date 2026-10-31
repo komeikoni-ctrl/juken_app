@@ -398,13 +398,68 @@ const shouldUrgeWebSearch = (msg) =>
 window.toggleWebSearchMode = () => {
   const order = [null, true, false];
   window._chatForceSearch = order[(order.indexOf(window._chatForceSearch) + 1) % order.length];
-  const btn = document.getElementById('chat-websearch-btn');
-  const label = window._chatForceSearch === null ? '🔎' : window._chatForceSearch ? '🔎✓' : '🔎✕';
-  const msg = window._chatForceSearch === null ? 'Web検索：AIに任せる（必要なときだけ調べます）'
-            : window._chatForceSearch ? 'Web検索：必ず調べさせる' : 'Web検索：しない';
-  if (btn) { btn.textContent = label; btn.title = msg; }
-  showToast(msg);
+  const state = window._chatForceSearch === null ? 'AIに任せる（必要なときだけ調べます）'
+              : window._chatForceSearch ? '必ず調べさせる' : 'しない';
+  const st = document.getElementById('chat-websearch-state');
+  if (st) st.textContent = state;
+  // メニューを閉じても分かるよう、「＋」ボタンの角に印を出す（既定の「AIに任せる」のときは出さない）
+  const badge = document.getElementById('chat-plus-badge');
+  if (badge) {
+    badge.hidden = window._chatForceSearch === null;
+    badge.textContent = window._chatForceSearch ? '🔎' : '✕';
+    badge.classList.toggle('off', window._chatForceSearch === false);
+    badge.title = 'Web検索：' + state;
+  }
+  showToast('Web検索：' + state);
 };
+
+// ===== 「＋」メニュー（添付・Web検索・音声入力） =====
+const _chatPlusEls = () => ({
+  menu: document.getElementById('chat-plus-menu'),
+  btn: document.getElementById('chat-plus-btn'),
+  ico: document.getElementById('chat-plus-ico')
+});
+window.closeChatPlusMenu = () => {
+  const { menu, btn } = _chatPlusEls();
+  if (menu) menu.classList.remove('open');
+  if (btn) { btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+};
+window.toggleChatPlusMenu = () => {
+  // 音声入力中は「＋」が停止ボタンになる
+  if (_recognizing && _recognition) { _recognition.stop(); return; }
+  const { menu, btn } = _chatPlusEls();
+  if (!menu || !btn) return;
+  const open = !menu.classList.contains('open');
+  menu.classList.toggle('open', open);
+  btn.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
+  if (open) menu.querySelector('.chat-plus-item')?.focus({ preventScroll: true });
+};
+// メニューの項目を選んだら閉じてから実行する。
+// ファイル選択（input.click）はタップの処理中に同期で呼ばないと iOS で開かないので、待たずにそのまま呼ぶ。
+window.chatPlusPick = (fn) => {
+  window.closeChatPlusMenu();
+  try { fn(); } catch (e) { showToast('操作に失敗しました: ' + e.message, 'error'); }
+};
+// 処理中（教材の検索・音声入力）は「＋」ボタンの表示を差し替える。icon=null で元に戻す
+window.setChatPlusBusy = (icon, opts = {}) => {
+  const { btn, ico } = _chatPlusEls();
+  if (!btn || !ico) return;
+  ico.textContent = icon || '＋';
+  btn.disabled = !!(icon && opts.disable);
+  btn.classList.toggle('mic-on', !!(icon && opts.recording));
+  btn.title = icon ? (opts.title || '') : '添付・Web検索・音声入力';
+};
+// メニューの外をタップしたとき・Esc で閉じる
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('chat-plus-menu');
+  if (menu && menu.classList.contains('open') && !e.target.closest('.chat-input-wrap')) window.closeChatPlusMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const menu = document.getElementById('chat-plus-menu');
+  if (menu && menu.classList.contains('open')) { window.closeChatPlusMenu(); document.getElementById('chat-plus-btn')?.focus(); }
+});
 
 // ===== チャット ファイル添付 状態管理 =====
 let _chatAttachedFile = null;
@@ -430,7 +485,6 @@ window.onChatFileSelected = async (event) => {
 let _recognition = null, _recognizing = false;
 window.toggleVoiceInput = () => {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const btn = document.getElementById('chat-mic-btn');
   if (!SR) { showToast('このブラウザは音声入力に対応していません', 'warn'); return; }
   if (_recognizing && _recognition) { _recognition.stop(); return; }
 
@@ -440,7 +494,8 @@ window.toggleVoiceInput = () => {
   _recognition.lang = 'ja-JP';
   _recognition.interimResults = true;
   _recognition.continuous = false;
-  _recognition.onstart = () => { _recognizing = true; if (btn) { btn.textContent = '⏹'; btn.classList.add('mic-on'); } showToast('🎤 話してください...', 'success', 2000); };
+  // 録音中は「＋」ボタンが ⏹（停止）になる
+  _recognition.onstart = () => { _recognizing = true; window.setChatPlusBusy('⏹', { recording: true, title: '音声入力を止める' }); showToast('🎤 話してください...（⏹で停止）', 'success', 2000); };
   _recognition.onresult = (ev) => {
     let txt = '';
     for (let i = 0; i < ev.results.length; i++) txt += ev.results[i][0].transcript;
@@ -450,7 +505,7 @@ window.toggleVoiceInput = () => {
     if (ev.error === 'not-allowed') showToast('マイクの使用が許可されていません', 'error');
     else if (ev.error !== 'aborted' && ev.error !== 'no-speech') showToast('音声入力エラー: ' + ev.error, 'error');
   };
-  _recognition.onend = () => { _recognizing = false; if (btn) { btn.textContent = '🎤'; btn.classList.remove('mic-on'); } };
+  _recognition.onend = () => { _recognizing = false; window.setChatPlusBusy(null); };
   try { _recognition.start(); } catch (e) { _recognizing = false; }
 };
 
