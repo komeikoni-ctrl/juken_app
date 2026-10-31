@@ -24,6 +24,10 @@ const deduplicateTasks = () => {
     }
   });
   if (toDelete.length > 0) {
+    // 重複分も黙って完全削除せず、ゴミ箱へ移してから消す（復元できるように）
+    if (typeof Trash !== 'undefined' && typeof Trash.push === 'function') {
+      S.tasks.filter(t => toDelete.includes(t.id)).forEach(t => Trash.push('tasks', t));
+    }
     toDelete.forEach(id => DbService.del('tasks', id));
     S.tasks = S.tasks.filter(t => !toDelete.includes(t.id));
   }
