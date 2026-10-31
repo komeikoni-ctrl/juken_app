@@ -82,6 +82,75 @@ function isoWeekKey(dateStr) {
   return d.getUTCFullYear() + '-W' + String(week).padStart(2, '0');
 }
 
+// ---------- 学習記録（dailyLogs サブコレクション） ----------
+// ドキュメント名が日付（YYYY-MM-DD）、中身は {total, subjects:{科目:分}}。
+// プロフィール本体の todayMinutes / streak はアプリが更新しなくなった古い値なので使わない。
+// { 'YYYY-MM-DD': {total, subjects} } の形で返す。
+async function listDailyLogs(maxDocs) {
+  const out = {};
+  const cap = maxDocs || 2000;
+  let pageToken = '';
+  let n = 0;
+  while (n < cap) {
+    const url = `${lib.FS_BASE}/${lib.PROFILE_DOC}/dailyLogs?pageSize=300${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}`;
+    const res = await fetch(url, { cache: 'no-store' });
+    if (res.status === 404) break;
+    if (!res.ok) throw new Error('firestore list failed: ' + res.status);
+    const j = await res.json();
+    for (const d of (j.documents || [])) {
+      n++;
+      const id = String(d.name || '').split('/').pop();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(id)) out[id] = fsDocToObj(d);
+    }
+    pageToken = j.nextPageToken || '';
+    if (!pageToken) break;
+  }
+  return out;
+}
+
+function addDaysStr(dateStr, n) {
+  return dateStrJst(new Date(Date.parse(dateStr + 'T00:00:00Z') + n * 86400000));
+}
+
+// 日別ログから「昨日の分数・連続日数・累計・最後に記録した日・直近7日」を出す（純粋関数）。
+// 連続日数はアプリの calcStreak と同じく、今日の記録が無ければ昨日から遡って数える。
+function studyStats(logs, today) {
+  const L = (logs && typeof logs === 'object') ? logs : {};
+  const mins = (d) => { const v = Number(L[d] && L[d].total); return Number.isFinite(v) && v > 0 ? Math.round(v) : 0; };
+  const yesterday = addDaysStr(today, -1);
+  let totalMinutes = 0;
+  let lastStudyDate = null;
+  for (const d of Object.keys(L)) {
+    const v = mins(d);
+    if (!v) continue;
+    totalMinutes += v;
+    if (d <= today && (!lastStudyDate || d > lastStudyDate)) lastStudyDate = d;
+  }
+  let streak = 0;
+  let cur = mins(today) > 0 ? today : yesterday;
+  for (let i = 0; i < 730 && mins(cur) > 0; i++) { streak++; cur = addDaysStr(cur, -1); }
+  let last7Minutes = 0;
+  const subj = {};
+  for (let i = 1; i <= 7; i++) {
+    const d = addDaysStr(today, -i);
+    last7Minutes += mins(d);
+    const sb = L[d] && L[d].subjects;
+    if (sb && typeof sb === 'object') {
+      for (const k of Object.keys(sb)) { const v = Number(sb[k]) || 0; if (v > 0) subj[k] = (subj[k] || 0) + v; }
+    }
+  }
+  const last7Subjects = Object.entries(subj).map(([subject, minutes]) => ({ subject, minutes: Math.round(minutes) }))
+    .sort((a, b) => b.minutes - a.minutes);
+  return {
+    today, yesterday,
+    todayMinutes: mins(today),
+    yesterdayMinutes: mins(yesterday),
+    streak, totalMinutes, lastStudyDate,
+    daysSinceLast: lastStudyDate ? daysDiff(lastStudyDate, today) : null,
+    last7Minutes, last7Subjects
+  };
+}
+
 // ---------- 締切イベント（api/cron-notify.js の EVENTS と同一の確定日程） ----------
 const EVENTS = [
   { id: 'doshisha-open',    date: '2026-12-21', label: '同志社大学 出願開始' },
@@ -209,7 +278,8 @@ async function geminiGenerate(prompt, opts) {
 
 module.exports = {
   fsUnwrap, fsDocToObj, getProfile, listCollection, getMoney,
-  jstNow, dateStrJst, daysDiff, isoWeekKey,
+  jstNow, dateStrJst, daysDiff, isoWeekKey, addDaysStr,
+  listDailyLogs, studyStats,
   EVENTS, upcomingEvents,
   estimateYen, monthUsageTotals, monthUsageCostYen, recentUsageTotals,
   geminiGenerate, recordUsageQuiet

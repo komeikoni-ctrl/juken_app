@@ -12,11 +12,11 @@
 //   live/alerts に記録＋ Push（詳細は detectSubsPriceAlerts）。
 // 手動実行: ?part=briefing|weekly|chat|subs|essays|all（Cron 認可が前提）。
 // ・15 添削キュー: 毎朝の便で pending を最大3件処理する。
-// 材料の実測（2026-10-27）: プロフィール本体・chatHistory・live/money・
-// live/aiUsage・live/admWatch は新鮮。tasks / dailyLogs のサブコレク
-// ションは 2026-09-20 で書き込みが止まっているため材料にしない。
-// 週次レビューの「先週の学習量」は、日次バックアップ（live/backup-*）
-// に残るプロフィールのスナップショットと現在の差分で近似する。
+// 学習時間は dailyLogs サブコレクション（日付ごとの記録）から計算する。
+// プロフィール本体の todayMinutes / streak は今のアプリが更新しない古い値で、
+// これを使うと毎朝同じ「昨日◯分」を言い続けてしまう（2026-10 に発覚）。
+// 週次レビューの「先週の学習量」も dailyLogs の直近7日から出し、
+// 読めなかったときだけ日次バックアップ（live/backup-*）との差分で近似する。
 // ============================================================
 const lib = require('./_pushlib');
 const gen = require('./_genlib');
@@ -33,24 +33,42 @@ async function gatherBriefingMaterials(today) {
   const m = { date: today };
   const profile = await gen.getProfile().catch(() => null);
   if (profile) {
-    m.todayMinutes = Number(profile.todayMinutes) || 0;
-    m.totalMinutes = Number(profile.totalMinutes) || 0;
-    m.streak = Number(profile.streak) || 0;
     m.todayGoalMin = Number(profile.todayGoalMin) || 0;
     const st = (profile.studyTime && typeof profile.studyTime === 'object') ? profile.studyTime : {};
     m.topSubjects = Object.entries(st).sort((a, b) => (b[1] || 0) - (a[1] || 0)).slice(0, 3)
       .map(([k, v]) => ({ subject: k, minutes: v }));
   }
+  // 学習時間は日別の記録から数える（読めなければ学習時間には触れない）
+  const logs = await gen.listDailyLogs().catch(() => null);
+  if (logs) {
+    const st = gen.studyStats(logs, today);
+    m.study = {
+      yesterday: st.yesterday, yesterdayMinutes: st.yesterdayMinutes,
+      streak: st.streak, totalMinutes: st.totalMinutes, last7Minutes: st.last7Minutes,
+      lastStudyDate: st.lastStudyDate, daysSinceLast: st.daysSinceLast
+    };
+  }
   m.upcoming = gen.upcomingEvents(today, 2);
   const kyotsu = m.upcoming.find(e => e.id === 'kyotsu-1');
   m.kyotsuDaysLeft = kyotsu ? kyotsu.daysLeft : gen.daysDiff(today, '2027-01-16');
-  const updates = await lib.fsGetJson(lib.WATCH_DOC, 'updates', []).catch(() => []);
-  const unread = (Array.isArray(updates) ? updates : []).filter(u => u && !u.read);
-  m.admUnread = unread.length;
-  m.admLatest = unread.length ? { uni: unread[0].uni, at: unread[0].at } : null;
+  // 入試情報の更新はブリーフィングの材料にしない（ホームに受験情報を出さないため。2026-10-31 こにの指示）
   const usage = await lib.fsGetJson(lib.AI_USAGE_DOC, 'usage', null).catch(() => null);
   if (usage) m.aiMonthCostYen = gen.monthUsageCostYen(usage, today.slice(0, 7));
   return m;
+}
+
+// 学習記録の材料行（朝・週次で共通）。記録が途切れているときは、
+// 「勉強していない」と決めつけずに記録を促す程度にとどめるよう指示する。
+function studyLines(st, goalMin) {
+  const out = [];
+  out.push(`- 昨日（${st.yesterday}）アプリに記録された学習時間: ${st.yesterdayMinutes}分` + (goalMin ? `（1日の目標 ${goalMin}分）` : ''));
+  out.push(`- 直近7日の記録合計: ${st.last7Minutes}分 / 連続記録: ${st.streak}日 / 累計: ${st.totalMinutes}分`);
+  if (!st.lastStudyDate) {
+    out.push('- 学習時間の記録はまだ1件もない。責めずに、タイマーで記録すると振り返りに使えることを一言添える程度にする');
+  } else if (st.daysSinceLast >= 2) {
+    out.push(`- 最後に学習時間を記録した日: ${st.lastStudyDate}（${st.daysSinceLast}日前）。記録が無いのは「勉強していない」ではなく「アプリに記録していない」だけの可能性がある。責めずに、記録を軽く促す程度にとどめること`);
+  }
+  return out;
 }
 
 function briefingPrompt(m) {
@@ -59,11 +77,11 @@ function briefingPrompt(m) {
   lines.push('条件: 3〜5文・200字以内。絵文字は最大1つまで。過度な励ましや説教は禁止。具体的な数字と、今日意識すべきことを1つだけ入れる。');
   lines.push('材料（アプリの実データ）:');
   lines.push(`- 日付: ${m.date}`);
-  if (m.todayMinutes != null) lines.push(`- アプリに記録された直近1日の学習時間: ${m.todayMinutes}分（累計 ${m.totalMinutes}分、連続記録 ${m.streak}日、1日の目標 ${m.todayGoalMin}分）`);
+  if (m.study) lines.push(...studyLines(m.study, m.todayGoalMin));
+  else lines.push('- 学習時間の記録: 読み取れなかった（学習時間には触れないこと）');
   if (m.topSubjects && m.topSubjects.length) lines.push('- 累計の多い科目: ' + m.topSubjects.map(s => `${s.subject} ${s.minutes}分`).join(' / '));
   lines.push(`- 共通テストまで: あと${m.kyotsuDaysLeft}日`);
   for (const e of (m.upcoming || [])) lines.push(`- 直近の日程: ${e.label}（${e.date}、あと${e.daysLeft}日）`);
-  if (m.admUnread) lines.push(`- 入試情報の未読の更新: ${m.admUnread}件（最新: ${m.admLatest ? m.admLatest.uni : ''}）`);
   if (m.aiMonthCostYen != null) lines.push(`- 今月のAI利用料の概算: 約${m.aiMonthCostYen}円`);
   lines.push('材料に無い数字や予定は作らないこと。');
   return lines.join('\n');
@@ -101,8 +119,22 @@ async function oldestBackupProfile(daysAgo, today) {
 
 async function gatherWeeklyMaterials(today) {
   const m = { date: today };
-  const profile = await gen.getProfile().catch(() => null);
-  const old = await oldestBackupProfile(7, today).catch(() => null);
+  const logs = await gen.listDailyLogs().catch(() => null);
+  if (logs) {
+    const st = gen.studyStats(logs, today);
+    m.study = {
+      yesterday: st.yesterday, yesterdayMinutes: st.yesterdayMinutes,
+      streak: st.streak, totalMinutes: st.totalMinutes, last7Minutes: st.last7Minutes,
+      lastStudyDate: st.lastStudyDate, daysSinceLast: st.daysSinceLast
+    };
+    m.totalMinutes = st.totalMinutes;
+    m.weekMinutes = st.last7Minutes;
+    m.studyDiff = st.last7Subjects;
+    m.diffBasis = '日別の学習記録（直近7日）';
+  }
+  // 日別の記録が読めなかったときだけ、バックアップとの差分で近似する
+  const profile = logs ? null : await gen.getProfile().catch(() => null);
+  const old = logs ? null : await oldestBackupProfile(7, today).catch(() => null);
   if (profile) {
     m.totalMinutes = Number(profile.totalMinutes) || 0;
     const cur = (profile.studyTime && typeof profile.studyTime === 'object') ? profile.studyTime : {};
@@ -141,6 +173,11 @@ function weeklyPrompt(m) {
     lines.push('- 先週の学習量: バックアップが揃わず算出できなかった（この点には触れず、他の材料で書くこと）');
   }
   if (m.totalMinutes != null) lines.push(`- 累計学習時間: ${m.totalMinutes}分`);
+  if (m.study && m.study.lastStudyDate && m.study.daysSinceLast >= 7) {
+    lines.push(`- 最後に学習時間を記録した日: ${m.study.lastStudyDate}（${m.study.daysSinceLast}日前）。記録が無いのは「アプリに記録していない」だけの可能性があるので、責めずに記録を促す程度にする`);
+  } else if (m.study && !m.study.lastStudyDate) {
+    lines.push('- 学習時間の記録はまだ1件もない（責めずに、記録すると振り返りに使えることを一言添える程度にする）');
+  }
   if (m.aiWeek) lines.push(`- 先週のAI利用: ${m.aiWeek.calls}回`);
   if (m.chatWeekCount != null) lines.push(`- 先週のAIチャット: ${m.chatWeekCount}件のやり取り`);
   for (const e of (m.upcoming || [])) lines.push(`- 直近の日程: ${e.label}（${e.date}、あと${e.daysLeft}日）`);
@@ -366,4 +403,4 @@ module.exports = async (req, res) => {
 };
 
 module.exports.config = { maxDuration: 60 };
-module.exports.helpers = { gatherBriefingMaterials, briefingPrompt, gatherWeeklyMaterials, weeklyPrompt, runBriefing, runWeekly, runChatSummary, detectSubsPriceAlerts, matchChannel, runSubsCheck, essayPrompt, runEssays, BRIEFING_DOC, WEEKLY_DOC, CHAT_SUMMARY_DOC, ALERTS_DOC, ESSAY_QUEUE_DOC };
+module.exports.helpers = { gatherBriefingMaterials, briefingPrompt, studyLines, gatherWeeklyMaterials, weeklyPrompt, runBriefing, runWeekly, runChatSummary, detectSubsPriceAlerts, matchChannel, runSubsCheck, essayPrompt, runEssays, BRIEFING_DOC, WEEKLY_DOC, CHAT_SUMMARY_DOC, ALERTS_DOC, ESSAY_QUEUE_DOC };

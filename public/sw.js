@@ -39,6 +39,7 @@ const PRECACHE = [
   './js/18-push.js',
   './js/19-server.js',
   './js/20-wave3.js',
+  './js/21-canvas.js',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js',
   'https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js',

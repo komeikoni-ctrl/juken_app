@@ -71,6 +71,27 @@ body::after{width:520px;height:520px;background:rgba(88,86,214,0.13);bottom:5%;r
   0%{transform:translate(0,0) scale(1);}
   100%{transform:translate(60px,60px) scale(1.25);}
 }
+/* 🎨 CanvasFX（21-canvas.js）: 背景の環境光はCanvasで描くのでDOMオーブは止める */
+#fx-bg{position:fixed;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
+html.fx-on body::before,html.fx-on body::after{display:none}
+#fx-confetti{position:fixed;inset:0;width:100%;height:100%;z-index:99998;pointer-events:none}
+/* ⏱ タイマーのCanvasリング */
+.timer-ringbox{position:relative;width:min(272px,76vw);aspect-ratio:1;margin:2px auto 0;display:flex;align-items:center;justify-content:center}
+#timer-ring{position:absolute;inset:0;width:100%;height:100%}
+.timer-ringbox .timer-disp{font-size:54px;letter-spacing:-2px;position:relative}
+@media(max-width:480px){.timer-ringbox .timer-disp{font-size:46px}}
+/* タスクのタップ対象を広げる（従来チェック17px・×ボタン約22px） */
+.ci input[type=checkbox]{width:22px;height:22px;margin-top:0}
+.ci .icon-btn{min-width:38px;min-height:38px;padding:8px;font-size:20px;margin:-6px -4px -6px 2px}
+.ci .drag-handle{padding:8px 4px;margin:-6px 0}
+/* ヒーローカード内のカウントダウン／統計 */
+#today-ring-card #home-countdown{padding:0 14px}
+#today-ring-card #home-stats{padding:0 14px 14px;margin-bottom:0!important}
+/* 動きを減らす設定ではアニメーションを止める */
+@media (prefers-reduced-motion: reduce){
+  body::before,body::after{animation:none}
+  *{transition-duration:0.01ms!important;animation-duration:0.01ms!important;animation-iteration-count:1!important}
+}
 
 .top-nav{
   position:sticky;top:12px;z-index:200;
@@ -403,6 +424,24 @@ input[type=range]{accent-color:var(--accent);width:100%}
 .cb-caret{display:inline-block;animation:caretBlink 1s steps(2) infinite;color:var(--accent);font-weight:700}
 @keyframes caretBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
 .chat-attach-btn.mic-on{background:var(--a2);color:#fff}
+/* AIコーチ入力欄の「＋」メニュー（添付・Web検索・音声入力） */
+.chat-input-wrap{position:relative}
+.chat-plus-menu{position:absolute;left:0;bottom:calc(100% + 8px);z-index:30;width:min(300px,100%);padding:6px;display:none;flex-direction:column;gap:2px;
+  background:linear-gradient(var(--card),var(--card)),var(--bg);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 28px rgba(0,0,0,.18)}
+.chat-plus-menu.open{display:flex}
+.chat-plus-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:none;border-radius:12px;background:transparent;color:var(--text);font:inherit;font-size:14px;font-weight:600;text-align:left;cursor:pointer}
+.chat-plus-item:hover,.chat-plus-item:focus-visible{background:rgba(0,122,255,0.10);outline:none}
+.chat-plus-item:active{transform:scale(0.98)}
+.chat-plus-item .ico{font-size:18px;width:24px;text-align:center;flex-shrink:0}
+.chat-plus-item .sub{display:block;font-size:11px;font-weight:400;color:var(--muted);margin-top:1px}
+.chat-plus-btn{position:relative;font-size:22px;font-weight:700;line-height:1}
+.chat-plus-btn.open{background:var(--accent);color:#fff}
+.chat-plus-btn:disabled{opacity:.6}
+.chat-plus-badge{position:absolute;top:-5px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--accent);color:#fff;font-size:10px;line-height:17px;font-weight:800;pointer-events:none}
+.chat-plus-badge.off{background:var(--muted)}
+html:root[data-style="pop"] .chat-plus-menu{background:var(--pop-card);border:2px solid var(--pop-line);box-shadow:4px 4px 0 var(--pop-line)}
+html:root[data-style="pop"] .chat-plus-btn.open{background:var(--pop-yellow);color:var(--pop-ink)}
+html:root[data-style="pop"] .chat-attach-btn.mic-on{background:var(--a2);color:#fff}
 /* 時間割の空きコマ。タップで追加できることが分かるように薄く＋を出す */
 .tt-empty{height:100%;width:100%;min-height:46px;display:flex;align-items:center;justify-content:center;
   color:var(--border);font-size:16px;font-weight:700;cursor:pointer;border-radius:4px;transition:all .15s}
@@ -805,7 +844,6 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
   </div>
   
   <div id="home-evening-alert" style="display:none; margin-bottom:14px;"></div>
-  <div id="home-adm-watch" style="display:none; margin-bottom:14px;"></div>
   <div id="home-ai-cost-alert" style="display:none; margin-bottom:14px;"></div>
   <div id="home-health-alert" style="display:none; margin-bottom:14px;"></div>
   <div id="home-briefing" style="display:none; margin-bottom:14px;"></div>
@@ -814,10 +852,14 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
 
   <div id="today-ring-card" class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
     <div id="today-ring-inner"></div>
+    <div class="g2" id="home-countdown" style="margin-bottom:12px"></div>
+    <div class="g4" id="home-stats"></div>
   </div>
 
-  <div class="card"><div class="card-hdr"><span class="card-hdr-title">⏰ 入試カウントダウン</span></div><div class="g2" id="home-countdown"></div></div>
-  <div class="g4" id="home-stats" style="margin-bottom:14px"></div>
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">✅ 今日のタスク</span><button class="btn btn-s btn-sm" onclick="showMo('mo-task')">+ 追加</button></div>
+    <div id="home-tasks"><div class="empty">タスクを追加してください</div></div>
+  </div>
 <div class="card" style="background: linear-gradient(145deg, rgba(10, 132, 255, 0.1), rgba(255, 255, 255, 0.1)); border: 1px solid rgba(10, 132, 255, 0.2) !important;">
   <div class="card-hdr" style="margin-bottom:12px;">
     <span class="card-hdr-title" style="color:var(--accent); font-weight:900; font-size:14px;">🚌 LIVE: 神姫バス（特急）</span>
@@ -844,10 +886,6 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
     <div class="card-hdr"><span class="card-hdr-title">🎯 志望校 合可能性</span></div>
     <div id="home-uni-prob"><div class="empty">志望校タブから大学を登録してください</div></div>
   </div>
-  <div class="card">
-    <div class="card-hdr"><span class="card-hdr-title">✅ 今日のタスク</span><button class="btn btn-s btn-sm" onclick="showMo('mo-task')">+ 追加</button></div>
-    <div id="home-tasks"><div class="empty">タスクを追加してください</div></div>
-  </div>
   <div class="card"><div class="card-hdr"><span class="card-hdr-title">🏆 称号・実績</span></div><div id="home-ach"></div></div>
 </div>
 
@@ -855,7 +893,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
   <div class="page-hdr"><div class="page-title">⏱ タイマー</div><button class="btn btn-s btn-sm" onclick="toggleImmersive()" id="btn-immersive">🔲 集中モード</button></div>
   <div class="timer-wrap" id="timer-wrap-main">
     <div class="timer-mode-row"><button class="tm-btn on" onclick="setTimerMode('stopwatch',this)">ストップウォッチ</button><button class="tm-btn" onclick="setTimerMode('pomodoro',this)">ポモドーロ</button><button class="tm-btn" onclick="setTimerMode('countdown',this)">カウントダウン</button></div>
-    <div class="timer-disp" id="timer-disp">00:00:00</div><div class="timer-sub-txt" id="timer-sub">スタートボタンで開始（※別の画面を開くとサボり検知されます）</div>
+    <div class="timer-ringbox"><canvas id="timer-ring" aria-hidden="true"></canvas><div class="timer-disp" id="timer-disp">00:00:00</div></div><div class="timer-sub-txt" id="timer-sub">スタートボタンで開始（※別の画面を開くとサボり検知されます）</div>
     <div class="timer-btns"><button class="t-btn t-reset" onclick="timerReset()">リセット</button><button class="t-btn t-start" id="timer-toggle-btn" onclick="timerToggle()">スタート</button></div>
   </div>
   <div class="expand-section">
@@ -1051,7 +1089,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
       <div class="g2" style="margin-bottom:10px"><div><label class="lbl">日付（省略=今日）</label><input type="date" id="add-date"></div><div style="display:flex;align-items:flex-end"><button class="btn btn-p btn-sm btn-full" onclick="addStudyTime()">手動で記録</button></div></div>
       
       <div class="divider"></div><div style="font-weight:700;font-size:14px;margin-bottom:6px">① 日別 総学習時間</div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label class="lbl" style="margin:0">表示期間</label><select id="daily-range" onchange="initDailyChart()" style="width:auto;margin:0;padding:6px 10px"><option value="30">直近30日</option><option value="90">直近90日</option><option value="180">直近180日</option><option value="365">直近365日</option><option value="0" selected>全期間</option></select></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label class="lbl" style="margin:0">表示期間</label><select id="daily-range" onchange="initDailyChart()" style="width:auto;margin:0;padding:6px 10px"><option value="30">直近30日</option><option value="90" selected>直近90日</option><option value="180">直近180日</option><option value="365">直近365日</option><option value="0">全期間</option></select></div>
       <div style="position:relative;height:220px;overflow-x:auto;-webkit-overflow-scrolling:touch"><div id="daily-chart-wrap" style="height:220px;min-width:100%"><canvas id="chart-daily"></canvas></div></div>
       
       <div class="divider"></div><div style="font-weight:700;font-size:14px;margin-bottom:6px">② 週別 総学習時間</div>
@@ -1254,14 +1292,20 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
     <div id="chat-file-preview-wrap" style="display:none;"></div>
     <input type="file" id="chat-file-input" accept="image/*,application/pdf" style="display:none" onchange="onChatFileSelected(event)">
     <input type="file" id="problem-photo-input" accept="image/*" style="display:none" onchange="ProblemPhotoUI.onFile(event)">
-    <div class="chat-input-row" style="align-items:flex-end;">
-      <button class="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="画像・PDF を添付（画像は自動で縮小されます）">📎</button>
-      <button class="chat-attach-btn" onclick="document.getElementById('problem-photo-input').click()" title="問題の写真を読み取って、解説の下書きを作ります">📷</button>
-      <button class="chat-attach-btn" onclick="tbAttachFromChat()" title="入力中の言葉で教材を探して、該当ページを添付します">📚</button>
-      <button class="chat-attach-btn" id="chat-websearch-btn" onclick="toggleWebSearchMode()" title="Web検索：自動（必要そうなときだけ）">🔎</button>
-      <button class="chat-attach-btn" id="chat-mic-btn" onclick="toggleVoiceInput()" title="音声で入力" style="display:none">🎤</button>
-      <textarea class="chat-inp" id="chat-in" placeholder="質問を入力... (Enterで送信)" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();doChat()}"></textarea>
-      <button class="send-btn" onclick="doChat()">送信</button>
+    <!-- 添付・検索・音声は「＋」メニューにまとめる（ボタンを横に並べると、スマホ幅で入力欄が数文字分しか残らなかった） -->
+    <div class="chat-input-wrap">
+      <div class="chat-plus-menu" id="chat-plus-menu" role="menu" aria-label="添付・Web検索・音声入力">
+        <button type="button" class="chat-plus-item" role="menuitem" onclick="chatPlusPick(() => document.getElementById('chat-file-input').click())"><span class="ico">📎</span><span>画像・PDFを添付<span class="sub">画像は自動で縮小されます</span></span></button>
+        <button type="button" class="chat-plus-item" role="menuitem" onclick="chatPlusPick(() => document.getElementById('problem-photo-input').click())"><span class="ico">📷</span><span>問題の写真から解説<span class="sub">写真を読み取って、解説の下書きを作ります</span></span></button>
+        <button type="button" class="chat-plus-item" role="menuitem" onclick="chatPlusPick(() => tbAttachFromChat())"><span class="ico">📚</span><span>教材から探して添付<span class="sub">入力中の言葉で教材の該当ページを探します</span></span></button>
+        <button type="button" class="chat-plus-item" role="menuitem" id="chat-websearch-btn" onclick="toggleWebSearchMode()"><span class="ico">🔎</span><span>Web検索<span class="sub" id="chat-websearch-state">AIに任せる（必要なときだけ調べます）</span></span></button>
+        <button type="button" class="chat-plus-item" role="menuitem" id="chat-mic-btn" onclick="chatPlusPick(() => toggleVoiceInput())" style="display:none"><span class="ico">🎤</span><span>音声で入力<span class="sub">話した内容を入力欄に入れます</span></span></button>
+      </div>
+      <div class="chat-input-row" style="align-items:flex-end;">
+        <button type="button" class="chat-attach-btn chat-plus-btn" id="chat-plus-btn" onclick="toggleChatPlusMenu()" title="添付・Web検索・音声入力" aria-label="添付・Web検索・音声入力" aria-haspopup="menu" aria-expanded="false" aria-controls="chat-plus-menu"><span class="chat-plus-ico" id="chat-plus-ico">＋</span><span class="chat-plus-badge" id="chat-plus-badge" hidden></span></button>
+        <textarea class="chat-inp" id="chat-in" placeholder="質問を入力... (Enterで送信)" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();doChat()}"></textarea>
+        <button class="send-btn" onclick="doChat()">送信</button>
+      </div>
     </div>
   </div>
   
@@ -1662,6 +1706,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
 <script src="js/18-push.js"></script>
 <script src="js/19-server.js"></script>
 <script src="js/20-wave3.js"></script>
+<script src="js/21-canvas.js"></script>
 <script src="js/11-boot.js"></script>
 </body>
 </html>
