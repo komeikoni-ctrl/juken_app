@@ -5,10 +5,10 @@
 // 環境変数 GEMINI_API_KEY を使って Google へ転送する。
 // Vercel 上ではアプリ側が APIキーなしで AI 機能を使える。
 //
-// このファイルは public/api/ に置かれるため GitHub Pages にも
-// 静的ファイルとして公開されるが、Pages では実行されない
-// （アプリ側は /api/gemini への POST が 404/405 になることで
-// 中継なしと判定し、従来の直接呼び出しにフォールバックする）。
+// 公開先は Vercel に一本化済み（GitHub Pages / Firebase Hosting は転送ページのみ）。
+// 中継が無い環境（ローカルの静的サーバーなど）では、アプリ側は
+// /api/gemini への POST が 404/405 になることで中継なしと判定し、
+// 端末に保存したキーでの直接呼び出しにフォールバックする。
 //
 // ⚠️ 悪用対策は「無差別な悪用を防ぐ」ためのもので、完全な防御ではない:
 //  - Origin / Referer が自サイトのものだけ許可（ただしヘッダーは詐称可能）
@@ -26,8 +26,7 @@ const MAX_BODY_BYTES = 4.5 * 1024 * 1024;
 const MAX_OUTPUT_TOKENS_CAP = 8192;
 
 const ALLOWED_ORIGINS = new Set([
-  'https://juken-app-sigma.vercel.app',
-  'https://komeikoni-ctrl.github.io'
+  'https://juken-app-sigma.vercel.app'
 ]);
 // 自分たちの Vercel デプロイ（プレビュー等）のオリジン
 const VERCEL_ORIGIN_RE = /^https:\/\/juken-app(-[a-z0-9-]+)?\.vercel\.app$/;

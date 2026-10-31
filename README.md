@@ -2,7 +2,8 @@
 
 大学受験（2027年度入試）のための個人用の学習・出願管理アプリ。スマホのホーム画面に置いて使うWebアプリ（PWA）。
 
-- 公開URL: https://komeikoni-ctrl.github.io/juken_app/ （GitHub Pages）
+- 公開URL: https://juken-app-sigma.vercel.app/ （Vercel。公開先はここだけ）
+  - 旧URL（GitHub Pages の `komeikoni-ctrl.github.io/juken_app/` と Firebase Hosting の `juken2027-63058.web.app`）は、Vercel 版へ案内する転送ページになっている（`pages-redirect/`）
 - データの保存: Firebase Firestore（端末どうしで同期）
 - AI: Google Gemini API（キーは各端末のブラウザ内にだけ保存し、同期もコードへの記載もしない）
 
@@ -44,6 +45,8 @@ public/
   js/14-kyotsu.js   共通テストの手続き
   js/15-past-exams.js 私大一般の合格ラインチェックと過去問の記録
   js/11-boot.js     起動処理とセルフテスト（最後に読み込む）
+api/                Vercel のサーバー機能（AI中継・定期処理・通知など）
+pages-redirect/     旧URL（GitHub Pages / Firebase Hosting）用の転送ページ
 tools/              教材PDFから本文を取り出してクラウドに上げる Python スクリプト
 ```
 
@@ -51,7 +54,9 @@ JSは `index.html` の `<script>` の順に読み込まれる。新しいJSを�
 
 ## 動作確認と公開
 
-- **main に push すると自動で公開される**（`.github/workflows/pages.yml`）。公開前に、JSの構文・公開してはいけないファイル・`index.html` と `sw.js` の読み込み一覧を自動でチェックし、通らなければ公開しない。
+- **main に push すると Vercel に自動で公開される**（`public/` が公開され、`api/` がサーバー機能になる）。
+- GitHub Actions（`.github/workflows/pages.yml`）は、push のたびに JSの構文・公開してはいけないファイル・`index.html` と `sw.js` の読み込み一覧をチェックし、GitHub Pages には転送ページ（`pages-redirect/`）だけを公開する。
+- Firebase Hosting を転送ページに切り替えるとき（1回だけ）: `firebase deploy --only hosting --config firebase.redirect.json`
 - 変更したら `public/js/version.js` の `APP_VERSION` を上げる（スマホに「新しいバージョンがあります」と出す合図。上げないと古い版が残る）。
 - 新しいJSを足したら、`index.html` の `<script>` と `sw.js` の `PRECACHE` の両方に書く。
 - ローカルでは必ず `http://localhost:5000/?sandbox=1` で開く（本番とは別のテスト用データに読み書きする）。

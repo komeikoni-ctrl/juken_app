@@ -187,11 +187,13 @@ const AdmWatchUI = {
     const rows = un.slice(0, 5).map(u => {
       const d = u.at ? new Date(u.at) : null;
       const ds = d ? (d.getMonth() + 1) + '/' + d.getDate() : '';
+      // 監視結果は外部データなので、http/https 以外（javascript: など）はリンクにしない
+      const url = safeUrl(u.url);
       return '<div style="padding:8px 0;border-top:1px solid var(--border)">'
         + '<div style="font-weight:800;font-size:13px">🎓 ' + esc(u.uni || '') + ' の入試ページが更新されました'
         + (ds ? ' <span class="muted" style="font-weight:400;font-size:11px">' + ds + ' 検知</span>' : '') + '</div>'
         + (u.snippet ? '<div class="muted" style="font-size:12px;line-height:1.6;margin-top:2px">…' + esc(u.snippet) + '…</div>' : '')
-        + (u.url ? '<a href="' + esc(u.url) + '" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent);font-weight:700">公式ページで確認する →</a>' : '')
+        + (url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" style="font-size:12px;color:var(--accent);font-weight:700">公式ページで確認する →</a>' : '')
         + '</div>';
     }).join('');
     return '<div class="card" style="border-left:4px solid var(--accent)">'

@@ -703,9 +703,8 @@ window.tbAttachFromChat = async () => {
   const inp = document.getElementById('chat-in');
   const q = (inp?.value || '').trim();
   if (!q) { showToast('先に質問を入力してください（その言葉で教材を探します）', 'warn'); return; }
-  const btn = document.querySelector('.chat-attach-btn[onclick*="tbAttachFromChat"]');
   _tbAttaching = true;
-  if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+  window.setChatPlusBusy?.('⏳', { disable: true, title: '教材を探しています…' });
   try {
     const hits = await TB.search(q, { limit: 10 });
     if (!hits.length) { showToast('教材の中に見つかりませんでした', 'warn'); return; }
@@ -716,7 +715,7 @@ window.tbAttachFromChat = async () => {
     showToast('教材の検索に失敗: ' + e.message, 'error');
   } finally {
     _tbAttaching = false;
-    if (btn) { btn.textContent = '📚'; btn.disabled = false; }
+    window.setChatPlusBusy?.(null);
   }
 };
 

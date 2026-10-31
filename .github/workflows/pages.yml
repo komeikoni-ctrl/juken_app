@@ -1,7 +1,10 @@
-# main に変更が入るたびに、public/ を GitHub Pages に公開する。
-# Muse など別の場所で変更しても自動で公開されるが、下の「公開前のチェック」に通らない変更は公開しない
-# （壊れたまま公開されて、スマホのアプリが開かなくなるのを防ぐ）。
-name: 公開（GitHub Pages）
+# アプリ本体の公開先は Vercel（https://juken-app-sigma.vercel.app/）に一本化した。
+# Vercel は main への push で自動公開される（このワークフローとは別）。
+# このワークフローは main への push ごとに
+#   1. public/ の公開前チェック（JS の構文・公開してはいけないファイル・読み込み一覧）を行い、
+#   2. GitHub Pages には、旧URLを開いた人を Vercel 版へ案内する転送ページ（pages-redirect/）だけを公開する。
+# 旧URLの端末に残った Service Worker は、pages-redirect/sw.js が解除する。
+name: チェックと転送ページの公開（GitHub Pages）
 
 on:
   push:
@@ -61,8 +64,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/configure-pages@v6
+      # アプリ本体ではなく、Vercel 版への転送ページだけを置く
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: public
+          path: pages-redirect
       - id: deployment
         uses: actions/deploy-pages@v5
