@@ -12,7 +12,19 @@ const noteKeywords = (n) => {
   return [];
 };
 
+// 同期スナップショットが短時間に連続で来ると全ページ再描画が重なるので、
+// 最初の1回は即実行し、250ms以内の連続呼び出しは末尾の1回にまとめる。
+let _ravTimer = 0, _ravLast = 0;
 const refreshAllViews = () => {
+  const now = Date.now();
+  if (now - _ravLast < 250) {
+    if (!_ravTimer) _ravTimer = setTimeout(() => { _ravTimer = 0; _ravLast = Date.now(); _refreshAllViewsNow(); }, 260);
+    return;
+  }
+  _ravLast = now;
+  _refreshAllViewsNow();
+};
+const _refreshAllViewsNow = () => {
   deduplicateTasks(); // 常に重複除去してからレンダリング
   const activeId = document.querySelector('.page.active')?.id;
   const isTyping = document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);

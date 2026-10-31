@@ -47,8 +47,6 @@ const renderTodayRing = () => {
   const todayMin = getTodayMinutes();
   const goalMin = (S.todayGoalMin || 240); // デフォルト4時間
   const pct = Math.min(100, Math.round(todayMin / goalMin * 100));
-  const r = 38, cx = 44, cy = 44, circ = 2 * Math.PI * r;
-  const dash = circ * pct / 100;
   const lg = S.dailyLogs[DateManager.getTodayStr()];
   const subjColors = ['#1d4ed8','#dc4f1e','#16a05a','#c07010','#6030b8','#0a6878','#b01070','#407040'];
   const subjDots = lg && lg.subjects ? Object.keys(lg.subjects).filter(s=>lg.subjects[s]>0).slice(0,6).map((s,i)=>`<span style="background:${subjColors[i%subjColors.length]}">${esc(s.replace(/（.*?）/,'').slice(0,4))}</span>`).join('') : '';
@@ -56,13 +54,7 @@ const renderTodayRing = () => {
   if (!ringEl) return;
   const color = pct >= 100 ? '#16a05a' : pct >= 60 ? '#1d4ed8' : pct >= 30 ? '#c07010' : '#dc4f1e';
   ringEl.innerHTML = `<div class="today-ring-wrap">
-    <svg class="today-ring-svg" width="88" height="88" viewBox="0 0 88 88">
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border)" stroke-width="7"/>
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="7"
-        stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${circ/4}" stroke-linecap="round"
-        style="transition:stroke-dasharray .6s cubic-bezier(.4,0,.2,1)"/>
-      <text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="14" font-weight="900" fill="${color}">${pct}%</text>
-    </svg>
+    <canvas id="today-ring-canvas" width="88" height="88" style="width:88px;height:88px;flex-shrink:0" role="img" aria-label="今日の学習 ${pct}%"></canvas>
     <div class="today-ring-info">
       <div class="today-ring-title">今日の学習</div>
       <div class="today-ring-val" style="color:${color}">${DateManager.formatHours(todayMin)}</div>
@@ -70,6 +62,7 @@ const renderTodayRing = () => {
       ${subjDots ? `<div class="today-ring-subj">${subjDots}</div>` : ''}
     </div>
   </div>`;
+  if (window.CanvasFX) CanvasFX.ring(document.getElementById('today-ring-canvas'), pct / 100, { key: 'today', color, text: pct + '%' });
 };
 
 window.showGoalModal = () => {
@@ -142,16 +135,7 @@ const renderHome = () => {
       S.unlockedAchs.push(a.name);
       setTimeout(() => {
         showToast('🎉 実績解除！「' + a.ico + ' ' + a.name + '」', 'success', 4000);
-        try {
-          const colors = ['#1d4ed8','#16a05a','#dc4f1e','#c07010','#6030b8'];
-          for (let i = 0; i < 60; i++) {
-            const div = document.createElement('div');
-            div.style.cssText = 'position:fixed;width:8px;height:8px;border-radius:2px;background:' + colors[i%colors.length] + ';left:' + (Math.random()*100) + 'vw;top:-10px;z-index:99999;pointer-events:none;opacity:1;transition:transform ' + (1+Math.random()) + 's ease-out,opacity ' + (1+Math.random()) + 's ease-out';
-            document.body.appendChild(div);
-            requestAnimationFrame(() => { div.style.transform = 'translateY(' + (60+Math.random()*40) + 'vh) rotate(' + (Math.random()*360) + 'deg)'; div.style.opacity = '0'; });
-            setTimeout(() => div.remove(), 2200);
-          }
-        } catch(e) {}
+        try { if (window.CanvasFX) CanvasFX.celebrate(110); } catch(e) {}
       }, 300);
       DbService.setMainProfile();
     }
@@ -196,7 +180,7 @@ const renderHome = () => {
     if (overdueHw.length > 0) upcomingAlerts.unshift(`<span style="color:#dc4f1e;font-weight:700">⚠️ 期限切れ宿題 ${overdueHw.length}件</span>`);
     let alertHtml = '';
     if (upcomingAlerts.length > 0) {
-      alertHtml += `<div class="card" style="border-left:4px solid var(--a2);background:#fff8f6;padding:14px;margin-bottom:8px"><div style="font-weight:800;color:var(--a2);margin-bottom:8px;font-size:14px">⏰ 直近の締め切り</div><div style="font-size:13px;line-height:1.9">${upcomingAlerts.join('<br>')}</div></div>`;
+      alertHtml += `<div class="card" style="border-left:4px solid var(--a2);background:var(--card);padding:14px;margin-bottom:8px"><div style="font-weight:800;color:var(--a2);margin-bottom:8px;font-size:14px">⏰ 直近の締め切り</div><div style="font-size:13px;line-height:1.9">${upcomingAlerts.join('<br>')}</div></div>`;
     }
     if (hour >= 18) {
       const days = ['日','月','火','水','木','金','土']; const tomDay = days[tomorrow2.getDay()];
@@ -204,7 +188,7 @@ const renderHome = () => {
       if (tomClassesObj && Object.keys(tomClassesObj).length > 0) tomClassesStr = Object.entries(tomClassesObj).map(([p, v]) => { const subj = typeof v === 'object' ? (v.subj||'') : v; return subj ? `${esc(p)}：${esc(subj)}` : ''; }).filter(Boolean).join('、');
       const dueHw = S.homework.filter(h => !h.done && h.due && h.due <= todayStr2);
       const hwStr = dueHw.length > 0 ? dueHw.map(h => `${esc(h.subj)} (${esc(h.cont)})`).join('、') : 'なし 🎉';
-      alertHtml += `<div class="card" style="border-left:4px solid var(--pur);background:#faf8ff;padding:14px"><div style="font-weight:800;color:var(--pur);margin-bottom:8px;font-size:14px">🌙 明日の準備と今日の確認</div><div style="font-size:13px;line-height:1.6"><strong>📅 明日の駿台 (${tomDay}曜):</strong> ${tomClassesStr}<br><strong style="color:var(--a2)">📝 期限が今日の未完了宿題:</strong> ${hwStr}</div></div>`;
+      alertHtml += `<div class="card" style="border-left:4px solid var(--pur);background:var(--card);padding:14px"><div style="font-weight:800;color:var(--pur);margin-bottom:8px;font-size:14px">🌙 明日の準備と今日の確認</div><div style="font-size:13px;line-height:1.6"><strong>📅 明日の駿台 (${tomDay}曜):</strong> ${tomClassesStr}<br><strong style="color:var(--a2)">📝 期限が今日の未完了宿題:</strong> ${hwStr}</div></div>`;
     }
     alertEl.innerHTML = alertHtml;
     alertEl.style.display = alertHtml ? 'block' : 'none';
@@ -311,7 +295,7 @@ window.addTask = () => {
   S.tasks.push(taskObj); DbService.set('tasks', taskObj);
   window.closeMo('mo-task'); renderTasks(); if (typeof updateNavBadges === 'function') updateNavBadges();
 };
-window.toggleTask = (id, cb) => { const t = S.tasks.find(x => x.id === id); if(t) { t.done = cb.checked; DbService.set('tasks', t); renderTasks(); if (typeof updateNavBadges === 'function') updateNavBadges(); } };
+window.toggleTask = (id, cb) => { const t = S.tasks.find(x => x.id === id); if(t) { t.done = cb.checked; DbService.set('tasks', t); renderTasks(); if (typeof updateNavBadges === 'function') updateNavBadges(); if (cb.checked && window.CanvasFX) { const r = cb.getBoundingClientRect(); CanvasFX.celebrate(24, { x: r.left + r.width / 2, y: r.top + r.height / 2 }); } } };
 window.rmTask = (id) => { DbService.del('tasks', id); S.tasks = S.tasks.filter(x => x.id !== id); renderTasks(); if (typeof updateNavBadges === 'function') updateNavBadges(); };
 
 window.T = {mode:'stopwatch',running:false,elapsed:0,interval:null, startTime:0, startElapsed:0};

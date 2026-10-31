@@ -1418,6 +1418,23 @@ SelfTest.add('プッシュ通知: VAPID公開鍵と購読データの形', () =>
   assertEq(typeof window.togglePush, 'function', 'オン／オフのトグル用ハンドラがあること');
 });
 
+SelfTest.add('CanvasFX: 上限・クランプ・色変換', () => {
+  assert(CanvasFX.dpr() <= 2, 'DPRは2で頭打ち');
+  assertEq(CanvasFX.clamp01(1.4), 1, '1超は1');
+  assertEq(CanvasFX.clamp01(-0.2), 0, '負は0');
+  assertEq(CanvasFX.clamp01(0.25), 0.25, '範囲内はそのまま');
+  assertEq(CanvasFX.clamp01('x'), 0, '数値でなければ0');
+  assertEq(CanvasFX.easeOut(0), 0, 'easeOutの始点');
+  assertEq(CanvasFX.easeOut(1), 1, 'easeOutの終点');
+  assertEq(CanvasFX.rgba('#1d4ed8', 0.5), 'rgba(29,78,216,0.5)', 'hex→rgba');
+  assertEq(CanvasFX.rgba('rgb(1,2,3)', 0.25), 'rgba(1,2,3,0.25)', 'rgb→rgba');
+  if (!CanvasFX.reduced()) {
+    assertEq(CanvasFX.celebrate(99999), CanvasFX.CONFETTI_MAX, '紙吹雪は上限で頭打ち');
+    assertEq(CanvasFX.celebrate(0), 0, '0個は0');
+  }
+  assert(!!document.getElementById('fx-bg'), '背景Canvasが置かれている');
+});
+
 SelfTest.add('ホームに 入試情報カードの置き場がないこと', () => {
   assertEq(document.getElementById('home-adm-watch'), null, 'home-adm-watch は撤去済み（2026-10-31 こにの指示）');
   assertEq(typeof AdmWatchUI, 'undefined', 'AdmWatchUI（ホーム表示）も廃止済み');

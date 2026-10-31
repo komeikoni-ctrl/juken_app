@@ -140,6 +140,14 @@ window.updateTimerDisp = (s) => {
   document.getElementById('timer-disp').textContent = txt;
   const im = document.getElementById('timer-immersive-disp');
   if (im) im.textContent = txt;
+  // Canvasリング: ストップウォッチは25分を1周、カウントダウン系は残り割合
+  if (window.CanvasFX) {
+    const T = window.T || {};
+    let frac;
+    if (T.mode === 'pomodoro' || T.mode === 'countdown') { const tot = T.startElapsed || s; frac = tot > 0 ? s / tot : 0; }
+    else frac = (s % 1500) / 1500;
+    CanvasFX.ring(document.getElementById('timer-ring'), frac, { key: 'timer', color: '#4da3ff', track: 'rgba(255,255,255,0.13)' });
+  }
 };
 
 window.timerReset = () => {
@@ -152,6 +160,7 @@ window.timerReset = () => {
   document.getElementById('timer-toggle-btn').className = 't-btn t-start';
   document.getElementById('timer-toggle-btn').textContent = 'スタート';
   syncImmersiveBtn(false);
+  if (window.CanvasFX) CanvasFX.ring(document.getElementById('timer-ring'), 0, { key: 'timer', color: '#4da3ff', track: 'rgba(255,255,255,0.13)' });
 };
 
 let _immersiveOn = false;

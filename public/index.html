@@ -71,6 +71,27 @@ body::after{width:520px;height:520px;background:rgba(88,86,214,0.13);bottom:5%;r
   0%{transform:translate(0,0) scale(1);}
   100%{transform:translate(60px,60px) scale(1.25);}
 }
+/* 🎨 CanvasFX（21-canvas.js）: 背景の環境光はCanvasで描くのでDOMオーブは止める */
+#fx-bg{position:fixed;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
+html.fx-on body::before,html.fx-on body::after{display:none}
+#fx-confetti{position:fixed;inset:0;width:100%;height:100%;z-index:99998;pointer-events:none}
+/* ⏱ タイマーのCanvasリング */
+.timer-ringbox{position:relative;width:min(272px,76vw);aspect-ratio:1;margin:2px auto 0;display:flex;align-items:center;justify-content:center}
+#timer-ring{position:absolute;inset:0;width:100%;height:100%}
+.timer-ringbox .timer-disp{font-size:54px;letter-spacing:-2px;position:relative}
+@media(max-width:480px){.timer-ringbox .timer-disp{font-size:46px}}
+/* タスクのタップ対象を広げる（従来チェック17px・×ボタン約22px） */
+.ci input[type=checkbox]{width:22px;height:22px;margin-top:0}
+.ci .icon-btn{min-width:38px;min-height:38px;padding:8px;font-size:20px;margin:-6px -4px -6px 2px}
+.ci .drag-handle{padding:8px 4px;margin:-6px 0}
+/* ヒーローカード内のカウントダウン／統計 */
+#today-ring-card #home-countdown{padding:0 14px}
+#today-ring-card #home-stats{padding:0 14px 14px;margin-bottom:0!important}
+/* 動きを減らす設定ではアニメーションを止める */
+@media (prefers-reduced-motion: reduce){
+  body::before,body::after{animation:none}
+  *{transition-duration:0.01ms!important;animation-duration:0.01ms!important;animation-iteration-count:1!important}
+}
 
 .top-nav{
   position:sticky;top:12px;z-index:200;
@@ -831,10 +852,14 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
 
   <div id="today-ring-card" class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
     <div id="today-ring-inner"></div>
+    <div class="g2" id="home-countdown" style="margin-bottom:12px"></div>
+    <div class="g4" id="home-stats"></div>
   </div>
 
-  <div class="card"><div class="card-hdr"><span class="card-hdr-title">⏰ 入試カウントダウン</span></div><div class="g2" id="home-countdown"></div></div>
-  <div class="g4" id="home-stats" style="margin-bottom:14px"></div>
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">✅ 今日のタスク</span><button class="btn btn-s btn-sm" onclick="showMo('mo-task')">+ 追加</button></div>
+    <div id="home-tasks"><div class="empty">タスクを追加してください</div></div>
+  </div>
 <div class="card" style="background: linear-gradient(145deg, rgba(10, 132, 255, 0.1), rgba(255, 255, 255, 0.1)); border: 1px solid rgba(10, 132, 255, 0.2) !important;">
   <div class="card-hdr" style="margin-bottom:12px;">
     <span class="card-hdr-title" style="color:var(--accent); font-weight:900; font-size:14px;">🚌 LIVE: 神姫バス（特急）</span>
@@ -861,10 +886,6 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
     <div class="card-hdr"><span class="card-hdr-title">🎯 志望校 合可能性</span></div>
     <div id="home-uni-prob"><div class="empty">志望校タブから大学を登録してください</div></div>
   </div>
-  <div class="card">
-    <div class="card-hdr"><span class="card-hdr-title">✅ 今日のタスク</span><button class="btn btn-s btn-sm" onclick="showMo('mo-task')">+ 追加</button></div>
-    <div id="home-tasks"><div class="empty">タスクを追加してください</div></div>
-  </div>
   <div class="card"><div class="card-hdr"><span class="card-hdr-title">🏆 称号・実績</span></div><div id="home-ach"></div></div>
 </div>
 
@@ -872,7 +893,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
   <div class="page-hdr"><div class="page-title">⏱ タイマー</div><button class="btn btn-s btn-sm" onclick="toggleImmersive()" id="btn-immersive">🔲 集中モード</button></div>
   <div class="timer-wrap" id="timer-wrap-main">
     <div class="timer-mode-row"><button class="tm-btn on" onclick="setTimerMode('stopwatch',this)">ストップウォッチ</button><button class="tm-btn" onclick="setTimerMode('pomodoro',this)">ポモドーロ</button><button class="tm-btn" onclick="setTimerMode('countdown',this)">カウントダウン</button></div>
-    <div class="timer-disp" id="timer-disp">00:00:00</div><div class="timer-sub-txt" id="timer-sub">スタートボタンで開始（※別の画面を開くとサボり検知されます）</div>
+    <div class="timer-ringbox"><canvas id="timer-ring" aria-hidden="true"></canvas><div class="timer-disp" id="timer-disp">00:00:00</div></div><div class="timer-sub-txt" id="timer-sub">スタートボタンで開始（※別の画面を開くとサボり検知されます）</div>
     <div class="timer-btns"><button class="t-btn t-reset" onclick="timerReset()">リセット</button><button class="t-btn t-start" id="timer-toggle-btn" onclick="timerToggle()">スタート</button></div>
   </div>
   <div class="expand-section">
@@ -1068,7 +1089,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
       <div class="g2" style="margin-bottom:10px"><div><label class="lbl">日付（省略=今日）</label><input type="date" id="add-date"></div><div style="display:flex;align-items:flex-end"><button class="btn btn-p btn-sm btn-full" onclick="addStudyTime()">手動で記録</button></div></div>
       
       <div class="divider"></div><div style="font-weight:700;font-size:14px;margin-bottom:6px">① 日別 総学習時間</div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label class="lbl" style="margin:0">表示期間</label><select id="daily-range" onchange="initDailyChart()" style="width:auto;margin:0;padding:6px 10px"><option value="30">直近30日</option><option value="90">直近90日</option><option value="180">直近180日</option><option value="365">直近365日</option><option value="0" selected>全期間</option></select></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><label class="lbl" style="margin:0">表示期間</label><select id="daily-range" onchange="initDailyChart()" style="width:auto;margin:0;padding:6px 10px"><option value="30">直近30日</option><option value="90" selected>直近90日</option><option value="180">直近180日</option><option value="365">直近365日</option><option value="0">全期間</option></select></div>
       <div style="position:relative;height:220px;overflow-x:auto;-webkit-overflow-scrolling:touch"><div id="daily-chart-wrap" style="height:220px;min-width:100%"><canvas id="chart-daily"></canvas></div></div>
       
       <div class="divider"></div><div style="font-weight:700;font-size:14px;margin-bottom:6px">② 週別 総学習時間</div>
@@ -1685,6 +1706,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
 <script src="js/18-push.js"></script>
 <script src="js/19-server.js"></script>
 <script src="js/20-wave3.js"></script>
+<script src="js/21-canvas.js"></script>
 <script src="js/11-boot.js"></script>
 </body>
 </html>
