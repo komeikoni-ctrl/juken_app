@@ -1418,21 +1418,9 @@ SelfTest.add('プッシュ通知: VAPID公開鍵と購読データの形', () =>
   assertEq(typeof window.togglePush, 'function', 'オン／オフのトグル用ハンドラがあること');
 });
 
-SelfTest.add('入試情報ウォッチ: 未読の抽出とカード生成', () => {
-  const ups = [
-    { id: '1', uni: '同志社大学', url: 'https://www.doshisha.ac.jp/admission/', at: '2026-12-01T00:00:00Z', snippet: '出願要項を公開', read: false },
-    { id: '2', uni: '立命館大学', url: 'https://admission.ritsumei.ac.jp/', at: '2026-12-02T00:00:00Z', snippet: '', read: true },
-    { id: '3', uni: '<悪意>', url: 'https://kindai.jp/', at: '2026-12-03T00:00:00Z', snippet: 'x', read: false }
-  ];
-  assertEq(AdmWatchUI._unread(ups).map(u => u.id), ['1', '3'], '未読だけを順序そのままに');
-  assertEq(AdmWatchUI._unread(null), [], 'null でも空配列');
-  const html = AdmWatchUI._cardHtml(ups);
-  assert(html.includes('同志社大学') && html.includes('出願要項を公開'), '未読の大学名と差分が出る');
-  assert(!html.includes('立命館大学'), '既読は出さない');
-  assert(html.includes('&lt;悪意&gt;'), '大学名はエスケープされる');
-  assertEq(AdmWatchUI._cardHtml(ups.map(u => ({ ...u, read: true }))), '', '全部既読ならカードなし');
-  const evil = AdmWatchUI._cardHtml([{ id: '9', uni: 'x', url: 'javascript:alert(1)', at: '2026-12-01T00:00:00Z', snippet: 's', read: false }]);
-  assert(!/href=/.test(evil) && !/javascript:/i.test(evil), 'http/https 以外のURLはリンクにしない');
+SelfTest.add('ホームに 入試情報カードの置き場がないこと', () => {
+  assertEq(document.getElementById('home-adm-watch'), null, 'home-adm-watch は撤去済み（2026-10-31 こにの指示）');
+  assertEq(typeof AdmWatchUI, 'undefined', 'AdmWatchUI（ホーム表示）も廃止済み');
 });
 
 SelfTest.add('タスク: 繰り越し日数と古い自動タスクの片付け対象', () => {
@@ -1451,6 +1439,28 @@ SelfTest.add('タスク: 繰り越し日数と古い自動タスクの片付け�
   ];
   assertEq(staleAutoTaskIds(tasks, '2026-10-31'), ['a', 'f'], '自動生成・未完了・7日以上だけ');
   assertEq(staleAutoTaskIds(null, '2026-10-31'), [], 'null でも空配列');
+});
+
+SelfTest.add('タスク: 古い自動タスクの片付けはゴミ箱へ移す（完全削除しない）', () => {
+  const savedTasks = S.tasks;
+  const realTrashPush = Trash.push, realDel = DbService.del;
+  const trashed = [], deleted = [];
+  try {
+    Trash.push = (col, item) => { trashed.push({ col, id: item.id }); };
+    DbService.del = async (col, id) => { deleted.push(id); };
+    const oldStr = DateManager.getTodayStr(new Date(Date.now() - 30 * 864e5));
+    S.tasks = [
+      { id: 'old1', text: '【復習】英語', done: false, createdDate: oldStr },
+      { id: 'keep1', text: '単語帳', done: false, createdDate: oldStr },
+      { id: 'keep2', text: '【予習】数学', done: false, createdDate: DateManager.getTodayStr() }
+    ];
+    assertEq(cleanupStaleAutoTasks(), 1, '片付けは1件だけ');
+    assertEq(trashed, [{ col: 'tasks', id: 'old1' }], '片付けたタスクはゴミ箱に入る');
+    assertEq(deleted, ['old1'], '本体からは消える');
+    assertEq(S.tasks.map(t => t.id), ['keep1', 'keep2'], '対象外は残る');
+  } finally {
+    S.tasks = savedTasks; Trash.push = realTrashPush; DbService.del = realDel;
+  }
 });
 
 SelfTest.add('AIモデル: おまかせ自動の振り分けと手動の尊重', () => {
