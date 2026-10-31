@@ -103,13 +103,28 @@ const renderHome = () => {
   if(document.getElementById('home-countdown')) document.getElementById('home-countdown').innerHTML = `<div style="text-align:center;padding:14px;background:var(--bg);border-radius:var(--r)"><div style="font-size:11px;color:var(--muted)">共通テスト 2027</div><div style="font-size:44px;font-weight:900;color:var(--a2);letter-spacing:-2px;line-height:1.1">${DateManager.formatDays(kd)}</div></div><div style="text-align:center;padding:14px;background:var(--bg);border-radius:var(--r)"><div style="font-size:11px;color:var(--muted)">二次試験</div><div style="font-size:44px;font-weight:900;color:var(--accent);letter-spacing:-2px;line-height:1.1">${DateManager.formatDays(nd)}</div></div>`;
   
   const trueTotal = calcTotalMinutes();
-  if(document.getElementById('home-stats')) document.getElementById('home-stats').innerHTML = `<div class="stat"><div class="stat-v" style="color:var(--a3)">${DateManager.formatHours(trueTotal)}</div><div class="stat-l">総学習時間</div></div><div class="stat"><div class="stat-v" style="color:var(--accent)">${DateManager.formatHours(getTodayMinutes())}</div><div class="stat-l">今日</div></div><div class="stat"><div class="stat-v" style="color:var(--pur)">${calcStreak()}日</div><div class="stat-l">継続</div></div><div class="stat"><div class="stat-v" style="color:var(--a4)">${S.mocks.length}</div><div class="stat-l">模試回数</div></div>`;
+  const statsEl = document.getElementById('home-stats');
+  if (statsEl) { statsEl.innerHTML = `<div class="stat"><div class="stat-v" style="color:var(--a3)">${DateManager.formatHours(trueTotal)}</div><div class="stat-l">総学習時間</div></div><div class="stat"><div class="stat-v" style="color:var(--accent)">${DateManager.formatHours(getTodayMinutes())}</div><div class="stat-l">今日</div></div><div class="stat"><div class="stat-v" style="color:var(--pur)">${calcStreak()}日</div><div class="stat-l">継続</div></div><div class="stat"><div class="stat-v" style="color:var(--a4)">${S.mocks.length}</div><div class="stat-l">模試回数</div></div>`;
+    if (window.CanvasFX) {
+      const vs = statsEl.querySelectorAll('.stat-v');
+      const fh = (v) => DateManager.formatHours(Math.round(v));
+      if (vs[0]) CanvasFX.countUp(vs[0], trueTotal, fh);
+      if (vs[1]) CanvasFX.countUp(vs[1], getTodayMinutes(), fh);
+      if (vs[2]) CanvasFX.countUp(vs[2], calcStreak(), (v) => Math.round(v) + '日');
+      if (vs[3]) CanvasFX.countUp(vs[3], S.mocks.length, (v) => String(Math.round(v)));
+    }
+  }
+  const sparkCv = document.getElementById('home-spark');
+  if (sparkCv && window.CanvasFX && typeof window.dayMinutesSeries === 'function') {
+    requestAnimationFrame(() => CanvasFX.sparkline(sparkCv, window.dayMinutesSeries(14).map(d => d.minutes), { key: 'home-spark' }));
+  }
   
   renderTodayRing();
   updateNavBadges();
   
   const colors = ['#1d4ed8','#dc4f1e','#16a05a','#c07010','#6030b8','#0a6878']; const targets = S.scoreTargets; const keys = Object.keys(targets);
-  if (keys.length) { document.getElementById('home-subj-prog').innerHTML = keys.map((s,i) => { const t = targets[s]; const pct = t.target > 0 ? Math.round(t.current/t.target*100) : 0; return `<div style="margin-bottom:10px"><div class="flex-between" style="font-size:13px;margin-bottom:3px"><span style="font-weight:700">${esc(s)}</span><span class="muted">${t.current} / 目標 ${t.target}点</span></div><div class="pb"><div class="pf" style="width:${Math.min(100,pct)}%;background:${colors[i%colors.length]}"></div></div></div>`; }).join(''); }
+  if (keys.length) { document.getElementById('home-subj-prog').innerHTML = keys.map((s,i) => { const t = targets[s]; const pct = t.target > 0 ? Math.round(t.current/t.target*100) : 0; return `<div style="margin-bottom:10px"><div class="flex-between" style="font-size:13px;margin-bottom:3px"><span style="font-weight:700">${esc(s)}</span><span class="muted">${t.current} / 目標 ${t.target}点</span></div><div class="pb"><div class="pf" data-w="${Math.min(100,pct)}" style="width:${window._pfAnimDone ? Math.min(100,pct) : 0}%;background:${colors[i%colors.length]}"></div></div></div>`; }).join('');
+    if (!window._pfAnimDone) { window._pfAnimDone = true; requestAnimationFrame(() => requestAnimationFrame(() => { document.querySelectorAll('#home-subj-prog .pf[data-w]').forEach(b => { b.style.width = b.dataset.w + '%'; }); })); } }
   if (S.unis.length) { const tlbl = {challenge:'チャレンジ',main:'第一志望',safe:'安全校'}; const tbc = {challenge:'br',main:'bb',safe:'bg'}; document.getElementById('home-uni-prob').innerHTML = S.unis.map(u => `<div class="row"><div><div class="flex-gap"><span class="row-title">${esc(u.name)}</span><span class="badge ${tbc[u.type]}">${tlbl[u.type]}</span></div><div class="row-sub">${esc(u.dep)}</div></div><div style="text-align:right"><div style="font-size:22px;font-weight:900;color:${(u.prob||0)>=75?'#16a05a':(u.prob||0)>=50?'#c07010':'#dc4f1e'}">${esc(u.prob||'—')}%</div></div></div>`).join(''); }
   renderTasks();
   

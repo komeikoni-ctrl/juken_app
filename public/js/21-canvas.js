@@ -89,7 +89,7 @@ const CanvasFX = (() => {
 
   // ---------- 2/3. リング（今日の学習・タイマー共通） ----------
   const ringState = new Map(); // key -> {val, raf}
-  const drawRingNow = (cv, val, color, track, text) => {
+  const drawRingNow = (cv, val, color, track, text, glow) => {
     const f = fit(cv); if (!f) return;
     const { ctx, w, h } = f;
     const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 6;
@@ -100,7 +100,9 @@ const CanvasFX = (() => {
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
     if (val > 0) {
       ctx.strokeStyle = color;
+      if (glow) { ctx.shadowColor = color; ctx.shadowBlur = 16; }
       ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp01(val)); ctx.stroke();
+      ctx.shadowBlur = 0;
       // 先端の光点
       const ang = -Math.PI / 2 + Math.PI * 2 * clamp01(val);
       ctx.fillStyle = color;
@@ -129,7 +131,7 @@ const CanvasFX = (() => {
     const step = (t) => {
       const p = dur ? easeOut((t - t0) / dur) : 1;
       st.val = from + (to - from) * p;
-      if (cv.isConnected) drawRingNow(cv, st.val, color, track, text);
+      if (cv.isConnected) drawRingNow(cv, st.val, color, track, text, !!opts.glow);
       if (p < 1) st.raf = requestAnimationFrame(step);
     };
     st.raf = requestAnimationFrame(step);
@@ -185,6 +187,116 @@ const CanvasFX = (() => {
     return count;
   };
 
+  // ---------- 5. 数値カウントアップ ----------
+  // el のテキストを現在表示値から to へ滑らかに。format で整形（省略時は整数+桁区切り）
+  const countUp = (el, to, format) => {
+    if (!el) return;
+    const fmt = typeof format === 'function' ? format : (v) => Math.round(v).toLocaleString('ja-JP');
+    const target = Number(to) || 0;
+    const from = Number(el.dataset.cu || 0);
+    el.dataset.cu = String(target);
+    if (el.dataset.cuRaf) cancelAnimationFrame(Number(el.dataset.cuRaf));
+    if (reduced() || from === target) { el.textContent = fmt(target); return; }
+    const t0 = performance.now(), dur = 650;
+    const stepFn = (t) => {
+      const p = easeOut((t - t0) / dur);
+      el.textContent = fmt(from + (target - from) * p);
+      if (p < 1 && el.isConnected) el.dataset.cuRaf = String(requestAnimationFrame(stepFn));
+    };
+    el.dataset.cuRaf = String(requestAnimationFrame(stepFn));
+  };
+
+  // ---------- 6. スパークライン（直近N日の推移を1本の線で） ----------
+  const sparkState = new Map(); // key -> raf
+  const sparkline = (cv, values, opts = {}) => {
+    if (!cv) return false;
+    const key = opts.key || 'spark';
+    if (sparkState.get(key)) cancelAnimationFrame(sparkState.get(key));
+    const color = opts.color || cssVar('--accent', '#007aff');
+    const data = (values || []).map(v => Math.max(0, Number(v) || 0));
+    if (data.length < 2) return false;
+    const t0 = performance.now(), dur = reduced() ? 0 : 650;
+    const draw = (prog) => {
+      const f = fit(cv); if (!f) return;
+      const { ctx, w, h } = f;
+      ctx.clearRect(0, 0, w, h);
+      const max = Math.max(...data, 1), pad = 4;
+      const X = (i) => pad + (w - pad * 2) * (i / (data.length - 1));
+      const Y = (v) => h - pad - (h - pad * 2 - 6) * (v / max);
+      const upto = 1 + (data.length - 1) * prog;
+      // 面（グラデーション）
+      ctx.beginPath(); ctx.moveTo(X(0), Y(data[0]));
+      for (let i = 1; i < Math.ceil(upto); i++) ctx.lineTo(X(i), Y(data[i]));
+      const lx = X(upto - 1), ly = Y(data[Math.floor(upto - 1)] + (data[Math.ceil(upto - 1)] - data[Math.floor(upto - 1)]) * (upto - 1 - Math.floor(upto - 1)));
+      ctx.lineTo(lx, ly);
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke();
+      ctx.lineTo(lx, h - pad); ctx.lineTo(X(0), h - pad); ctx.closePath();
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, rgba(color, 0.25)); g.addColorStop(1, rgba(color, 0));
+      ctx.fillStyle = g; ctx.fill();
+      // 末端ドット（今日）
+      ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.arc(X(data.length - 1), Y(data[data.length - 1]), 3, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+    };
+    const stepFn = (t) => { const p = dur ? easeOut((t - t0) / dur) : 1; draw(p); if (p < 1) sparkState.set(key, requestAnimationFrame(stepFn)); };
+    sparkState.set(key, requestAnimationFrame(stepFn));
+    return true;
+  };
+
+  // ---------- 7. 学習ヒートマップ（週×曜日のグリッド） ----------
+  // days: [{date:'YYYY-MM-DD', minutes}] を古い順に。列=週、行=日曜..土曜で並べる
+  const heatmap = (cv, days, opts = {}) => {
+    if (!cv || !Array.isArray(days) || !days.length) return 0;
+    const color = opts.color || cssVar('--accent', '#007aff');
+    const goal = Number(opts.goal) || 240;
+    const draw = () => {
+      const f = fit(cv); if (!f) return 0;
+      const { ctx, w, h } = f;
+      ctx.clearRect(0, 0, w, h);
+      const rows = 7, gap = 3;
+      // 既定26週を表示する。セルは幅と高さの両方から決める（片方だけだと週数が崩れる）
+      let cols = Math.max(8, Math.min(52, Math.round(opts.weeks || 26)));
+      let cell = Math.min(Math.floor((w - gap * (cols - 1)) / cols), Math.floor((h - gap * (rows - 1)) / rows));
+      if (cell < 6) { cols = Math.floor((w + gap) / (6 + gap)); cell = Math.min(Math.floor((w - gap * (cols - 1)) / cols), Math.floor((h - gap * (rows - 1)) / rows)); }
+      // 末尾（今週の土曜）から cols 週分だけを使う
+      const cells = [];
+      const byDate = new Map(days.map(d => [d.date, d.minutes || 0]));
+      const last = new Date(days[days.length - 1].date + 'T00:00:00');
+      const endSat = new Date(last); endSat.setDate(last.getDate() + (6 - last.getDay()));
+      const start = new Date(endSat); start.setDate(endSat.getDate() - (cols * 7 - 1));
+      for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+          const d = new Date(start); d.setDate(start.getDate() + c * 7 + r);
+          const ds = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+          if (d > last && ds !== days[days.length - 1].date) continue; // 未来日は描かない
+          const min = byDate.get(ds) || 0;
+          const x = c * (cell + gap), y = r * (cell + gap);
+          const lv = min <= 0 ? 0 : min < goal * 0.25 ? 1 : min < goal * 0.5 ? 2 : min < goal ? 3 : 4;
+          ctx.fillStyle = lv === 0 ? 'rgba(128,128,140,0.14)' : rgba(color, [0, 0.3, 0.5, 0.75, 1][lv]);
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(x, y, cell, cell, 3); else ctx.rect(x, y, cell, cell);
+          ctx.fill();
+          cells.push({ x, y, size: cell, date: ds, minutes: min });
+        }
+      }
+      cv._hmCells = cells;
+      return cols;
+    };
+    const cols = draw();
+    if (!cv._hmBound) {
+      cv._hmBound = true;
+      cv.addEventListener('click', (ev) => {
+        const rect = cv.getBoundingClientRect();
+        const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
+        const hit = (cv._hmCells || []).find(c => px >= c.x && px <= c.x + c.size && py >= c.y && py <= c.y + c.size);
+        if (hit && typeof cv._hmTap === 'function') cv._hmTap(hit);
+      });
+    }
+    if (typeof opts.onTap === 'function') cv._hmTap = opts.onTap;
+    return cols;
+  };
+
   // ---------- 初期化 ----------
   const init = () => {
     initBg();
@@ -200,6 +312,6 @@ const CanvasFX = (() => {
   else init();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) drawBg(performance.now()); });
 
-  return { dpr, clamp01, easeOut, reduced, rgba, ring, celebrate, _drawBg: drawBg, CONFETTI_MAX };
+  return { dpr, clamp01, easeOut, reduced, rgba, ring, celebrate, countUp, sparkline, heatmap, _drawBg: drawBg, CONFETTI_MAX };
 })();
 window.CanvasFX = CanvasFX;

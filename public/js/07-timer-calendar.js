@@ -93,6 +93,7 @@ const startTimerTick = () => {
         clearInterval(window.T.interval); window.T.running = false; window.T.elapsed = 0;
         localStorage.removeItem(TIMER_KEY);
         window.updateTimerDisp(window.T.elapsed);
+        if (window.CanvasFX) CanvasFX.celebrate(90);
         playTimerEndSound();
         showToast('⏰ 時間です！お疲れ様でした！自動で記録します。', 'success', 4000);
         const doneMin = Math.round(window.T.startElapsed / 60);
@@ -146,7 +147,7 @@ window.updateTimerDisp = (s) => {
     let frac;
     if (T.mode === 'pomodoro' || T.mode === 'countdown') { const tot = T.startElapsed || s; frac = tot > 0 ? s / tot : 0; }
     else frac = (s % 1500) / 1500;
-    CanvasFX.ring(document.getElementById('timer-ring'), frac, { key: 'timer', color: '#4da3ff', track: 'rgba(255,255,255,0.13)' });
+    CanvasFX.ring(document.getElementById('timer-ring'), frac, { key: 'timer', color: '#4da3ff', track: 'rgba(255,255,255,0.13)', glow: !!(window.T && window.T.running) });
   }
 };
 

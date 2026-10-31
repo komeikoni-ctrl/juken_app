@@ -41,7 +41,7 @@ const _refreshAllViewsNow = () => {
   if (typeof renderMilestones === 'function') renderMilestones();
   if (typeof renderComparison === 'function') renderComparison();
   
-  if (activeId === 'page-analytics') { initAllCharts(); }
+  if (activeId === 'page-analytics') { initAllCharts(); if (typeof window.renderHeatmap === 'function') window.renderHeatmap(); }
   
   const el = document.getElementById('daily-coach-c'); 
   if (el && (activeId !== 'page-aicoach' || !isTyping)) {

@@ -649,6 +649,18 @@ const getTodayMinutes = () => {
   return S.dailyLogs[dStr]?.total || 0;
 };
 
+// 直近 n 日の [{date, minutes}] を古い順に返す（CanvasFX のスパークライン／ヒートマップ用）
+window.dayMinutesSeries = (n) => {
+  const out = [];
+  const today = DateManager.parseSafe(DateManager.getTodayStr());
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(today); d.setDate(today.getDate() - i);
+    const ds = DateManager.getTodayStr(d);
+    out.push({ date: ds, minutes: S.dailyLogs[ds]?.total || 0 });
+  }
+  return out;
+};
+
 // 💡 全ての学習記録から正確な総学習時間を計算する関数
 const calcTotalMinutes = () => {
   let total = 0;
