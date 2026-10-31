@@ -1,21 +1,19 @@
 // ============================================================
-// プッシュ通知 ＆ 入試情報ウォッチ（Vercel版のみ）
+// プッシュ通知（Vercel版のみ）
 // ------------------------------------------------------------
 // 通知: Vercel Functions（/api/push-send 等）＋ Web Push。
 //   購読情報は Firestore の live/pushSubs に保存する（お金タブの
 //   live/money と同じ REST 方式。アプリの同期データ S には載せない）。
 // 入試情報: サーバー（cron-watch）が3大学の公式入学案内ページを
-//   毎日チェックし、変更があれば Firestore live/admWatch の
-//   updates に積む。ここではそれを読んでホームにカードを出す。
+//   毎日チェックし、変更があればプッシュ通知で知らせる。
+//   ホームへのカード表示は 2026-10-31 に廃止した（こにの指示）。
 // GitHub Pages には Functions が無いので、有効化は失敗を検知して
 // 案内文を出すだけにし、アプリ本体は壊れないようにする。
 // ============================================================
 
 const VAPID_PUBLIC_KEY = 'BCE585peGIZqj7y_uRF7NJQjdB1Lg238kNMkw2DMHcwbv8pj8i_Jr8x13vPe0lZBI8sfX0VWviEgwoZI5hEHbhQ';
 const PUSH_SUBS_DOC_URL = 'https://firestore.googleapis.com/v1/projects/juken2027-63058/databases/(default)/documents/live/pushSubs';
-const WATCH_DOC_URL = 'https://firestore.googleapis.com/v1/projects/juken2027-63058/databases/(default)/documents/live/admWatch';
 const PUSH_LOCAL_KEY = 'jukenPush2027';   // {endpoint} この端末の購読状態
-const WATCH_CACHE_KEY = 'jukenAdmWatch2027'; // {updates:[...], fetchedAt}
 
 function _b64ToBytes(base64) {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4);
@@ -169,79 +167,7 @@ window.togglePush = (on) => { if (on) PushUI.enable(); else PushUI.disable(); };
 window.testPush = () => PushUI.test();
 
 // ============================================================
-// 入試情報ウォッチ（ホームのカード）
+// 入試情報ウォッチのホーム表示は廃止（2026-10-31 こにの指示「ホームに受験情報入れるのやめて」）
+// サーバー側の監視（cron-watch）とプッシュ通知は従来どおりで、
+// ホーム画面にはカードを出さないし、admWatch の取得もしない。
 // ============================================================
-const AdmWatchUI = {
-  _cache: {
-    read: () => { try { return JSON.parse(localStorage.getItem(WATCH_CACHE_KEY) || 'null'); } catch (e) { return null; } },
-    write: (o) => { try { localStorage.setItem(WATCH_CACHE_KEY, JSON.stringify(o)); } catch (e) {} }
-  },
-
-  // 未読だけを新しい順に（純粋関数: テスト対象）
-  _unread: (updates) => (Array.isArray(updates) ? updates : []).filter(u => u && !u.read),
-
-  // カードの中身（純粋関数: テスト対象）
-  _cardHtml: (updates) => {
-    const un = AdmWatchUI._unread(updates);
-    if (!un.length) return '';
-    const rows = un.slice(0, 5).map(u => {
-      const d = u.at ? new Date(u.at) : null;
-      const ds = d ? (d.getMonth() + 1) + '/' + d.getDate() : '';
-      // 監視結果は外部データなので、http/https 以外（javascript: など）はリンクにしない
-      const url = safeUrl(u.url);
-      return '<div style="padding:8px 0;border-top:1px solid var(--border)">'
-        + '<div style="font-weight:800;font-size:13px">🎓 ' + esc(u.uni || '') + ' の入試ページが更新されました'
-        + (ds ? ' <span class="muted" style="font-weight:400;font-size:11px">' + ds + ' 検知</span>' : '') + '</div>'
-        + (u.snippet ? '<div class="muted" style="font-size:12px;line-height:1.6;margin-top:2px">…' + esc(u.snippet) + '…</div>' : '')
-        + (url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" style="font-size:12px;color:var(--accent);font-weight:700">公式ページで確認する →</a>' : '')
-        + '</div>';
-    }).join('');
-    return '<div class="card" style="border-left:4px solid var(--accent)">'
-      + '<div class="card-hdr"><span class="card-hdr-title">🎓 入試情報の更新</span>'
-      + '<button class="btn btn-s btn-sm" onclick="AdmWatchUI.markAllRead()">既読にする</button></div>'
-      + rows + '</div>';
-  },
-
-  _updates: [],
-  load: async () => {
-    const cached = AdmWatchUI._cache.read();
-    if (cached && Array.isArray(cached.updates)) AdmWatchUI._updates = cached.updates;
-    AdmWatchUI.render();
-    try {
-      const s = await _fsReadStringField(WATCH_DOC_URL, 'updates');
-      if (s != null) {
-        const arr = JSON.parse(s || '[]');
-        if (Array.isArray(arr)) {
-          // 既読は端末側の状態を優先する（サーバー側の read は他端末向け）
-          const readIds = new Set(AdmWatchUI._updates.filter(u => u.read).map(u => u.id));
-          AdmWatchUI._updates = arr.map(u => readIds.has(u.id) ? { ...u, read: true } : u);
-          AdmWatchUI._cache.write({ updates: AdmWatchUI._updates, fetchedAt: Date.now() });
-        }
-      }
-    } catch (e) { /* 取れなければキャッシュ表示のまま */ }
-    AdmWatchUI.render();
-  },
-
-  render: () => {
-    const el = document.getElementById('home-adm-watch');
-    if (!el) return;
-    const html = AdmWatchUI._cardHtml(AdmWatchUI._updates);
-    el.innerHTML = html;
-    el.style.display = html ? 'block' : 'none';
-  },
-
-  markAllRead: async () => {
-    AdmWatchUI._updates = AdmWatchUI._updates.map(u => ({ ...u, read: true }));
-    AdmWatchUI._cache.write({ updates: AdmWatchUI._updates, fetchedAt: Date.now() });
-    AdmWatchUI.render();
-    // サーバー側にも既読を伝える（失敗しても端末側の既読は保つ）
-    try { await _fsWriteStringField(WATCH_DOC_URL, 'updates', JSON.stringify(AdmWatchUI._updates)); } catch (e) {}
-    showToast('入試情報の更新を既読にしました');
-  }
-};
-window.AdmWatchUI = AdmWatchUI;
-
-document.addEventListener('DOMContentLoaded', () => {
-  // 設定タブを開いた時にも状態が最新になるよう、描画のたびに軽く更新
-  try { AdmWatchUI.load(); } catch (e) {}
-});
