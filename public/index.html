@@ -88,6 +88,8 @@ html.fx-on body::before,html.fx-on body::after{display:none}
 #today-ring-card #home-countdown{padding:0 14px}
 #today-ring-card #home-stats{padding:0 14px 14px;margin-bottom:0!important}
 /* 動きを減らす設定ではアニメーションを止める */
+.page.active{animation:fxPageIn .3s cubic-bezier(.2,.7,.3,1)}
+@keyframes fxPageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){
   body::before,body::after{animation:none}
   *{transition-duration:0.01ms!important;animation-duration:0.01ms!important;animation-iteration-count:1!important}
@@ -854,6 +856,7 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
     <div id="today-ring-inner"></div>
     <div class="g2" id="home-countdown" style="margin-bottom:12px"></div>
     <div class="g4" id="home-stats"></div>
+    <div style="padding:0 14px 12px"><div style="font-size:11px;color:var(--muted);margin-bottom:2px">📈 直近14日の学習</div><canvas id="home-spark" style="width:100%;height:44px;display:block" aria-hidden="true"></canvas></div>
   </div>
 
   <div class="card">
@@ -1041,6 +1044,12 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
   <div class="card">
     <div class="card-hdr"><span class="card-hdr-title">📈 前週比・前月比</span></div>
     <div id="comparison-c"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-title">🗓 学習ヒートマップ（直近6か月）</span></div>
+    <canvas id="heatmap-cv" style="width:100%;height:96px;display:block" role="img" aria-label="日別の学習時間ヒートマップ"></canvas>
+    <div id="heatmap-info" style="font-size:12px;color:var(--muted);margin-top:6px">マスをタップすると、その日の学習時間が出ます</div>
   </div>
 
   <div class="expand-section">

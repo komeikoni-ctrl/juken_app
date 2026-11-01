@@ -1436,6 +1436,18 @@ SelfTest.add('CanvasFX: 上限・クランプ・色変換', () => {
 });
 
 SelfTest.add('ホームに 入試情報カードの置き場がないこと', () => {
+  // CanvasFX wave2: countUp / sparkline / heatmap（26週固定・タップ判定セル）
+  eq(typeof CanvasFX.countUp, 'function', 'countUpがある');
+  eq(typeof CanvasFX.sparkline, 'function', 'sparklineがある');
+  eq(typeof CanvasFX.heatmap, 'function', 'heatmapがある');
+  { const cv = document.createElement('canvas');
+    cv.style.width = '364px'; cv.style.height = '96px';
+    document.body.appendChild(cv);
+    const days = []; const base = new Date(); base.setDate(base.getDate() - 181);
+    for (let i = 0; i < 182; i++) { const d = new Date(base); d.setDate(base.getDate() + i); days.push({ date: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'), minutes: i % 5 === 0 ? 120 : 0 }); }
+    eq(CanvasFX.heatmap(cv, days, { goal: 240 }), 26, 'ヒートマップは26週');
+    ok((cv._hmCells || []).length >= 170, 'タップ判定セルが登録される');
+    cv.remove(); }
   assertEq(document.getElementById('home-adm-watch'), null, 'home-adm-watch は撤去済み（2026-10-31 こにの指示）');
   assertEq(typeof AdmWatchUI, 'undefined', 'AdmWatchUI（ホーム表示）も廃止済み');
 });

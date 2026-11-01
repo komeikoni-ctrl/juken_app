@@ -143,6 +143,25 @@ const renderComparison = () => {
 };
 window.renderComparison = renderComparison;
 
+// 学習ヒートマップ（CanvasFX）: 直近182日を週×曜日で描き、タップで詳細表示
+const renderHeatmap = () => {
+  const cv = document.getElementById('heatmap-cv');
+  if (!cv || !window.CanvasFX || typeof window.dayMinutesSeries !== 'function') return;
+  const days = window.dayMinutesSeries(182);
+  requestAnimationFrame(() => {
+    CanvasFX.heatmap(cv, days, { goal: S.todayGoalMin || 240, onTap: (cell) => {
+      const info = document.getElementById('heatmap-info');
+      if (!info) return;
+      const d = DateManager.parseSafe(cell.date);
+      const wd = ['日','月','火','水','木','金','土'][d.getDay()];
+      info.textContent = cell.minutes > 0
+        ? `${d.getMonth() + 1}/${d.getDate()}（${wd}）: ${DateManager.formatHours(cell.minutes)} 学習しました`
+        : `${d.getMonth() + 1}/${d.getDate()}（${wd}）: 記録なし`;
+    } });
+  });
+};
+window.renderHeatmap = renderHeatmap;
+
 // ============================================================
 // 🧹 科目名の統合
 // 学習時間は studyTime / dailyLogs / timerLogs の3箇所に科目名で入る。
