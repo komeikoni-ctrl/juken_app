@@ -471,6 +471,8 @@ const MoneySubs = {
 // セクションごとの描画（サブタブで切り分ける単位）。各セクションの中身は従来の全表示と同一
 MoneyView.sections = (data) => {
   const total = Number(data.total) || 0;
+  // PayPay残高（Yahoo! JAPAN連携で自動取得。チェッカーが paypay.balance に入れる。総資産 total には加算済み）
+  const ppBal = (data.paypay && data.paypay.balance && typeof data.paypay.balance.amount === 'number') ? data.paypay.balance : null;
   const cats = Array.isArray(data.categories) ? data.categories : [];
   const sec = MoneyFeed.securities(data);
   const now = new Date();
@@ -488,14 +490,16 @@ MoneyView.sections = (data) => {
   out.total = `<div class="card" style="background:linear-gradient(145deg, rgba(10,132,255,.10), rgba(255,255,255,.05));border:1px solid rgba(10,132,255,.20)!important">
     <div class="card-hdr"><span class="card-hdr-title">💰 総資産</span><span class="badge bb" style="font-size:10px">マネーフォワード ME</span></div>
     <div style="font-size:34px;font-weight:900;letter-spacing:-1px">${MoneyView.yen(total)}</div>
-    <div class="g${Math.min(3, Math.max(2, cats.length))}" style="margin-top:10px">${cats.map(c => `
-      <div class="stat"><div class="stat-v" style="font-size:19px">${MoneyView.yen(c.amount)}</div><div class="stat-l">${esc(c.name)}（${MoneyFeed.pct(c.amount, total)}%）</div></div>`).join('')}
+    <div class="g${Math.min(3, Math.max(2, cats.length + (ppBal ? 1 : 0)))}" style="margin-top:10px">${cats.map(c => `
+      <div class="stat"><div class="stat-v" style="font-size:19px">${MoneyView.yen(c.amount)}</div><div class="stat-l">${esc(c.name)}（${MoneyFeed.pct(c.amount, total)}%）</div></div>`).join('')}${ppBal ? `
+      <div class="stat"><div class="stat-v" style="font-size:19px">${MoneyView.yen(ppBal.amount)}</div><div class="stat-l">PayPay残高（${MoneyFeed.pct(ppBal.amount, total)}%）</div></div>` : ''}
     </div>
   </div>`;
 
   // 口座別残高
   const accounts = [];
   cats.forEach(c => (c.accounts || []).forEach(a => accounts.push({ name: a.name, amount: a.amount, cat: c.name })));
+  if (ppBal) accounts.push({ name: 'PayPay', amount: ppBal.amount, cat: '電子マネー（Yahoo! JAPAN連携で自動取得）' });
   out.accounts = accounts.length
     ? `<div class="card"><div class="card-hdr"><span class="card-hdr-title">🏦 口座・資産ごと</span></div>` +
       accounts.map(a => MoneyView.row(a.name, a.cat, a.amount, MoneyFeed.pct(a.amount, total))).join('') + `</div>`
@@ -617,7 +621,19 @@ MoneyView.sections = (data) => {
   const ppImportHtml = `<div style="margin-top:10px"><button type="button" class="btn btn-s btn-sm" onclick="document.getElementById('paypay-import-input').click()">📱 PayPay CSVを取り込む</button>`
     + `<input type="file" id="paypay-import-input" accept=".csv,text/csv" style="display:none" onchange="PayPayImportUI.onFile(event)">`
     + `<div id="paypay-import-c"></div></div>`;
+  // 残高・ポイント（Yahoo! JAPAN連携で自動取得。明細履歴は公式にアプリ専用のため下のCSVスナップショットのまま）
+  const ppFetched = ppBal && ppBal.fetchedAt ? String(ppBal.fetchedAt).replace('T', ' ').slice(0, 16).replace(/-/g, '/') : '';
+  const ppBalHtml = ppBal
+    ? `<div class="g2" style="margin-bottom:6px">
+        <div class="stat"><div class="stat-v" style="font-size:22px">${MoneyView.yen(ppBal.amount)}</div><div class="stat-l">PayPay残高</div></div>
+        <div class="stat"><div class="stat-v" style="font-size:22px">${(Number(ppBal.points) || 0).toLocaleString('ja-JP')}pt</div><div class="stat-l">PayPayポイント</div></div>
+      </div>
+      <div class="muted" style="font-size:11px">内訳：PayPayマネー ${MoneyView.yen(ppBal.money)}／マネーライト ${MoneyView.yen(ppBal.lite)}</div>
+      <div class="muted" style="font-size:11px;margin-top:4px">残高・ポイントは Yahoo! JAPAN連携で自動取得${ppFetched ? `（${esc(ppFetched)} 取得）` : ''}。${ppBal.stale ? '最新の取得ができていないため、前回取得分を表示しています。' : ''}支払い明細は下記のCSVスナップショットです。</div>
+      <div style="font-size:12px;font-weight:700;margin:12px 0 4px">支払い履歴（CSV）</div>`
+    : '';
   out.paypay = `<div class="card"><div class="card-hdr"><span class="card-hdr-title">📱 PayPay の支払い</span><span class="badge" style="font-size:10px">CSVスナップショット</span></div>`
+    + ppBalHtml
     + (ppMonths.length
       ? ppMonths.map(m => MoneyView.row(MoneyView.ymLabel(m.month), `${m.count}件`, m.amount, Math.round(m.amount / ppMax * 100), 'var(--pur)')).join('') +
         `<div style="font-size:12px;font-weight:700;margin:12px 0 4px">よく使う店（全期間）</div>` +
