@@ -466,8 +466,8 @@ SelfTest.add('過去問: 結果の計算と直近の平均', () => {
 });
 
 SelfTest.add('モデルの自動切替: 系統・保存値・チャット用だけ', () => {
-  const okIds = ['gemini-3.8-flash', 'gemini-4-argon', 'gemini-3.5-flash-lite', 'gemini-3.1-pro-preview'];
-  assert(okIds.every(LiveFeed._isChatModel), 'Flash / Flash-Lite / Pro / Argon はチャット用として通すこと');
+  const okIds = ['gemini-3.8-flash', 'gemini-4-argon', 'gemini-4-carbon', 'gemini-4-hydrogen', 'gemini-3.5-flash-lite', 'gemini-3.1-pro-preview'];
+  assert(okIds.every(LiveFeed._isChatModel), 'Flash / Flash-Lite / Pro / Argon / Carbon / Hydrogen はチャット用として通すこと');
   const ngIds = ['gemini-3.8-flash-tts', 'gemini-3.1-flash-image', 'gemini-3.8-live', 'gemini-3.5-transcribe', 'gemini-2.5-flash-preview-09-2025', 'gemma-4-27b'];
   assert(!ngIds.some(LiveFeed._isChatModel), '音声・画像・Live・日付つきプレビューは選択肢に入れないこと');
   // localStorage を一時的に差し替えて確かめる（終わったら必ず戻す）
@@ -1009,7 +1009,13 @@ SelfTest.add('ホーム: ベントグリッドの全ブロックが揃い、グ�
 SelfTest.add('モデル選択: 既定値と未知IDの扱い', () => {
   assert(AVAILABLE_MODELS.includes(DEFAULT_MODEL), '既定モデルが一覧に含まれること');
   assert(!AVAILABLE_MODELS.includes('gemini-2.0-flash'), '提供終了モデルが一覧にないこと');
+  assert(!AVAILABLE_MODELS.includes('gemini-2.5-flash'), '2026-12-01 から別モデルへ自動転送される 2.5 Flash は一覧にないこと');
+  assert(AVAILABLE_MODELS.includes('gemini-4-hydrogen'), 'Gemini 4 Hydrogen が選べること');
+  assert(AVAILABLE_MODELS.includes('gemini-4-carbon'), 'Gemini 4 Carbon が選べること');
+  assert(AVAILABLE_MODELS.includes('gemini-3.1-flash-lite'), 'Gemini 3.1 Flash-Lite が選べること');
   assert(FALLBACK_MODELS.every(m => AVAILABLE_MODELS.includes(m)), 'フォールバック先が全て有効なモデルであること');
+  assert(!FALLBACK_MODELS.includes('gemini-4-carbon') && !FALLBACK_MODELS.includes('gemini-4-argon'), '高額モデルを代替先に入れないこと');
+  assert(AVAILABLE_MODELS.every(m => AI_MODEL_INFO[m]), '全モデルに料金・無料枠の表示情報があること');
 });
 
 SelfTest.add('AI応答: thoughtパートを除いて本文を結合', () => {
@@ -1124,6 +1130,10 @@ SelfTest.add('Gemini 4 Argon: 思考レベル・キャッシュ・代替先・�
   const old = AiService.buildPayload({ prompt: 'q', system: 's', history: [], model: 'gemini-2.5-flash', thinkingLevel: 'high' });
   assert(!old.generationConfig?.thinkingConfig, '2.5 系には思考レベルを送らないこと');
   assert(NO_EXPLICIT_CACHE_MODELS.includes('gemini-4-argon'), 'Argon は明示キャッシュを作らないこと');
+  assert(NO_EXPLICIT_CACHE_MODELS.includes('gemini-4-carbon'), 'Carbon も暗黙キャッシュのみ（公式表記 Implicit caching only）');
+  assert(NO_EXPLICIT_CACHE_MODELS.includes('gemini-4-hydrogen'), 'Hydrogen も暗黙キャッシュのみ');
+  assert(!AiCost.isFreeTier('gemini-4-carbon') && !AiCost.isFreeTier('gemini-4-argon'), 'Carbon / Argon は無料枠なし');
+  assert(AiCost.isFreeTier('gemini-4-hydrogen'), 'Hydrogen は Gemini 4 で初めて無料枠あり');
   const e = AiService.classifyError(429, 'Quota exceeded for metric: generate_content_free_tier_requests, limit: 0, model: gemini-4-argon', {});
   assert(/無料枠/.test(e.msg || ''), '無料枠のキーで呼んだときは「1分待って」ではなくモデル変更を案内すること');
   const busy = AiService.classifyError(429, 'Resource has been exhausted (e.g. check quota).', {});
@@ -1437,16 +1447,16 @@ SelfTest.add('CanvasFX: 上限・クランプ・色変換', () => {
 
 SelfTest.add('ホームに 入試情報カードの置き場がないこと', () => {
   // CanvasFX wave2: countUp / sparkline / heatmap（26週固定・タップ判定セル）
-  eq(typeof CanvasFX.countUp, 'function', 'countUpがある');
-  eq(typeof CanvasFX.sparkline, 'function', 'sparklineがある');
-  eq(typeof CanvasFX.heatmap, 'function', 'heatmapがある');
+  assertEq(typeof CanvasFX.countUp, 'function', 'countUpがある');
+  assertEq(typeof CanvasFX.sparkline, 'function', 'sparklineがある');
+  assertEq(typeof CanvasFX.heatmap, 'function', 'heatmapがある');
   { const cv = document.createElement('canvas');
     cv.style.width = '364px'; cv.style.height = '96px';
     document.body.appendChild(cv);
     const days = []; const base = new Date(); base.setDate(base.getDate() - 181);
     for (let i = 0; i < 182; i++) { const d = new Date(base); d.setDate(base.getDate() + i); days.push({ date: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'), minutes: i % 5 === 0 ? 120 : 0 }); }
-    eq(CanvasFX.heatmap(cv, days, { goal: 240 }), 26, 'ヒートマップは26週');
-    ok((cv._hmCells || []).length >= 170, 'タップ判定セルが登録される');
+    assertEq(CanvasFX.heatmap(cv, days, { goal: 240 }), 26, 'ヒートマップは26週');
+    assert((cv._hmCells || []).length >= 170, 'タップ判定セルが登録される');
     cv.remove(); }
   assertEq(document.getElementById('home-adm-watch'), null, 'home-adm-watch は撤去済み（2026-10-31 こにの指示）');
   assertEq(typeof AdmWatchUI, 'undefined', 'AdmWatchUI（ホーム表示）も廃止済み');
@@ -1519,16 +1529,42 @@ SelfTest.add('AIモデル: おまかせ自動の振り分けと手動の尊重',
 });
 
 SelfTest.add('AIコスト: 単価の期間切替と概算計算', () => {
-  // Argon は 2026-11-30 まで $2/$10、12月から $4/$20
+  // Argon / Carbon は 2026-11-30 まで $2/$10、12月から $4/$20
   assertEq(AiCost.priceFor('gemini-4-argon', '2026-11-30').input, 2, 'Argon 11月末までの入力単価');
   assertEq(AiCost.priceFor('gemini-4-argon', '2026-12-01').input, 4, 'Argon 12月からの入力単価');
-  // 3.8 Flash は 2026-12-31 まで $0.75/$3.75、翌年から $1.50/$7.50
+  assertEq(AiCost.priceFor('gemini-4-carbon', '2026-12-01').output, 20, 'Carbon 12月からの出力単価');
+  // Hydrogen は $1.50/$7.50 で期間切替なし
+  assertEq(AiCost.priceFor('gemini-4-hydrogen', '2026-11-17').input, 1.5, 'Hydrogen の入力単価');
+  assertEq(AiCost.priceFor('gemini-4-hydrogen', '2027-06-01').output, 7.5, 'Hydrogen の出力単価は据え置き');
+  // 3.8 / 3.6 Flash は 2026-12-31 まで $0.75/$3.75、翌年から $1.50/$7.50
   assertEq(AiCost.priceFor('gemini-3.8-flash', '2026-12-31').output, 3.75, 'Flash 年内の出力単価');
   assertEq(AiCost.priceFor('gemini-3.8-flash', '2027-01-01').output, 7.5, 'Flash 年明けの出力単価');
+  assertEq(AiCost.priceFor('gemini-3.6-flash', '2027-01-01').output, 7.5, '3.6 Flash にも年明けの値上げがあること');
+  // 3.5 Flash-Lite の公式単価は $0.30/$2.50（旧表の $0.10/$0.40 は 2.5 Lite の単価だった）
+  assertEq(AiCost.priceFor('gemini-3.5-flash-lite', '2026-11-17').input, 0.3, '3.5 Flash-Lite の入力単価（訂正済み）');
+  assertEq(AiCost.priceFor('gemini-3.5-flash-lite', '2026-11-17').output, 2.5, '3.5 Flash-Lite の出力単価（訂正済み）');
+  assertEq(AiCost.priceFor('gemini-3.1-flash-lite', '2026-11-17').input, 0.25, '3.1 Flash-Lite は最安');
+  // 次の改定日の案内
+  const nx = AiCost.nextPriceFor('gemini-3.8-flash', '2026-11-17');
+  assertEq(nx && nx.from, '2027-01-01', '3.8 Flash の次の改定日');
+  assertEq(AiCost.nextPriceFor('gemini-4-hydrogen', '2026-11-17'), null, 'Hydrogen に改定予定はない');
   // 100万入力 + 100万出力（Flash・年内）= (0.75+3.75)ドル × 155円 = 697.5円
   const yen = AiCost.estimateYen('gemini-3.8-flash', 1000000, 1000000, '2026-10-27');
   assert(Math.abs(yen - 697.5) < 0.01, '概算コストの計算が合う（実際: ' + yen + '）');
   assertEq(AiCost.estimateYen('gemini-3.8-flash', 0, 0, '2026-10-27'), 0, 'トークン0なら0円');
+  // 1回の目安と1行説明
+  assert(AiCost.perCallYen('gemini-4-hydrogen', '2026-11-17') > 0, 'Hydrogen の1回あたり目安が計算できる');
+  assert(/無料枠あり/.test(AiCost.describeModel('gemini-4-hydrogen', '2026-11-17')), '説明文に無料枠が出ること');
+  assert(/無料枠なし/.test(AiCost.describeModel('gemini-4-carbon', '2026-11-17')), 'Carbon の説明文は無料枠なし');
+});
+
+SelfTest.add('料金表UI: 全モデルの行と注意書きが出る', () => {
+  const html = AiCostUI._tableHtml('2026-11-17');
+  assert(html.includes('Gemini 4 Hydrogen') && html.includes('Gemini 4 Carbon'), '新モデルの行があること');
+  assert(html.includes('無料枠あり') && html.includes('有料のみ'), '無料枠の有無が全行に出ること');
+  assert(html.includes('2027-01-01'), '将来の値上げ日が表に出ること');
+  assert(html.includes('aistudio.google.com/rate-limit'), '正確な上限の確認先（AI Studio）へのリンクがあること');
+  assert(!html.includes('Gemini 2.5 Flash'), '提供終了モデルは表に出さないこと');
 });
 
 SelfTest.add('AI利用量: 月次集計とモデル別内訳', () => {

@@ -48,7 +48,7 @@ const LIVE_WARNING_NAMES = {
 // 09-misc.js の modelMigration で起動時に別IDへ書き換えられるモデル。
 // 一覧に足すと「選んでも次回起動で勝手に戻る」ことになり、SelfTest（提供終了モデルが一覧にないこと）も崩れるので足さない
 const LIVE_MODEL_SKIP = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-3-flash', 'gemini-3-flash-preview', 'gemini-3-pro-preview',
-  'gemini-3.1-flash-lite-preview', 'gemini-2.5-flash-lite', 'gemini-2.5-flash-lite-preview-09-2025', 'gemini-2.5-pro', 'gemini-3.7-flash', 'gemini-3.5-flash'];
+  'gemini-3.1-flash-lite-preview', 'gemini-2.5-flash-lite', 'gemini-2.5-flash-lite-preview-09-2025', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-3.5-flash'];
 
 const LiveFeed = {
   // localStorage jukenLive2027 の読み書き。壊れていたら空として扱う
@@ -349,10 +349,21 @@ const LiveFeed = {
     const p = LiveFeed.data.geminiPricing;
     const model = (typeof AiService !== 'undefined') ? AiService.getModel() : '';
     const m = p?.models?.[model];
-    if (!m) { el.innerHTML = (upNote ? upNote + '<br>' : '') + LiveFeed._pricingFallback; return; }
-    const free = m.freeTier === true ? '無料枠あり' : m.freeTier === false ? '無料枠なし（有料プランのみ）' : (m.freeTier ? String(m.freeTier) : '');
+    if (!m) {
+      // ライブ料金がまだ無い/そのモデルが無いときは、アプリ内蔵の料金・無料枠情報（03-ai.js）で出す
+      if (model && typeof AiCost !== 'undefined' && typeof AI_MODEL_INFO !== 'undefined' && AI_MODEL_INFO[model]) {
+        el.innerHTML = (upNote ? upNote + '<br>' : '') + `💎 ${esc(AiCost.infoFor(model).name)}：${esc(AiCost.describeModel(model))}。詳しくは下の「モデルの料金と無料枠」へ。`;
+        return;
+      }
+      el.innerHTML = (upNote ? upNote + '<br>' : '') + LiveFeed._pricingFallback; return;
+    }
+    // ライブ側の freeTier が未設定（null）のときは内蔵情報で補う
+    const info = (typeof AiCost !== 'undefined') ? AiCost.infoFor(model) : null;
+    const ft = (m.freeTier === true || m.freeTier === false) ? m.freeTier : (info ? info.freeTier : null);
+    const free = ft === true ? '無料枠あり' + (info?.freeGuide ? '（' + info.freeGuide + '）' : '') : ft === false ? '無料枠なし（有料プランのみ）' : (m.freeTier ? String(m.freeTier) : '');
     const price = (m.inputPer1M != null || m.outputPer1M != null) ? `100万トークンあたり入力$${m.inputPer1M ?? '—'}・出力$${m.outputPer1M ?? '—'}` : '';
-    const body = [price, free, m.note || ''].filter(Boolean).map(esc).join('。');
+    const perCall = (typeof AiCost !== 'undefined' && model) ? `1回約¥${(Math.round(AiCost.perCallYen(model) * 10) / 10).toLocaleString()}` : '';
+    const body = [price, perCall, free, m.note || ''].filter(Boolean).map(esc).join('。');
     el.innerHTML = (upNote ? upNote + '<br>' : '') + `💎 ${esc(m.displayName || model)}：${body}${body ? '。' : ''}（Google公式料金表 ${esc(p.sourceUpdatedAt || p.updatedAt || '')} 時点・自動取得）`;
   },
 
@@ -478,7 +489,7 @@ const LiveFeed = {
   // 系統は変えない（Flash の人は Flash のまま）。プレビュー版へは、今がプレビュー版のときだけ。
   // チャットに使える系統だけ（音声・画像・Live・文字起こし・日付つきの旧プレビューなどは除く）。
   // これを通さないと、TTS や画像生成のモデルまで選択肢に並び、選ぶとチャットが動かなくなる
-  _isChatModel: (id) => /^gemini-\d+(?:\.\d+)?-(?:flash-lite|flash|pro|argon)(?:-preview)?$/.test(String(id || '')),
+  _isChatModel: (id) => /^gemini-\d+(?:\.\d+)?-(?:flash-lite|flash|pro|argon|carbon|hydrogen)(?:-preview)?$/.test(String(id || '')),
   autoUpgradeModel: (list) => {
     try {
       // 「保存されているモデル」を基準にする。AiService.getModel() は選択欄の値を先に見るので、

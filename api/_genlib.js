@@ -178,10 +178,13 @@ function upcomingEvents(today, limit) {
 
 // ---------- AI 単価（03-ai.js の AI_PRICES と同一）と概算 ----------
 const AI_PRICES = {
+  'gemini-4-carbon':      [{ until: '2026-11-30', input: 2.00, output: 10.00 }, { until: null, input: 4.00, output: 20.00 }],
   'gemini-4-argon':       [{ until: '2026-11-30', input: 2.00, output: 10.00 }, { until: null, input: 4.00, output: 20.00 }],
+  'gemini-4-hydrogen':    [{ until: null, input: 1.50, output: 7.50 }],
   'gemini-3.8-flash':     [{ until: '2026-12-31', input: 0.75, output: 3.75 }, { until: null, input: 1.50, output: 7.50 }],
-  'gemini-3.6-flash':     [{ until: null, input: 0.75, output: 3.75 }],
-  'gemini-3.5-flash-lite': [{ until: null, input: 0.10, output: 0.40 }],
+  'gemini-3.6-flash':     [{ until: '2026-12-31', input: 0.75, output: 3.75 }, { until: null, input: 1.50, output: 7.50 }],
+  'gemini-3.5-flash-lite': [{ until: null, input: 0.30, output: 2.50 }],
+  'gemini-3.1-flash-lite': [{ until: null, input: 0.25, output: 1.50 }],
   'gemini-3.1-pro-preview': [{ until: null, input: 2.00, output: 12.00 }],
   'gemini-2.5-flash':     [{ until: null, input: 0.30, output: 2.50 }]
 };

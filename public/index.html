@@ -1388,20 +1388,27 @@ html:root[data-style="modern"] .hw-card{background:var(--card)}
         <label class="lbl">使用するAIモデル</label>
         <select id="set-model">
           <option value="auto">おまかせ（自動・コスト最適）</option>
-          <option value="gemini-3.8-flash">Gemini 3.8 Flash ⭐ (最新・推奨)</option>
-          <option value="gemini-4-argon">Gemini 4 Argon 💎 (最高性能・有料プランのみ・高額)</option>
-          <option value="gemini-3.6-flash">Gemini 3.6 Flash (バランス型・低価格)</option>
-          <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (超高速・低コスト)</option>
-          <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (高精度・分析用)</option>
-          <option value="gemini-2.5-flash">Gemini 2.5 Flash (旧安定版)</option>
+          <option value="gemini-4-hydrogen">Gemini 4 Hydrogen ⭐ (最新・推奨／無料枠あり)</option>
+          <option value="gemini-3.8-flash">Gemini 3.8 Flash (従来の推奨／無料枠あり)</option>
+          <option value="gemini-4-carbon">Gemini 4 Carbon 💎 (最も高性能・有料のみ・高額)</option>
+          <option value="gemini-4-argon">Gemini 4 Argon 💎 (高性能・有料のみ・高額)</option>
+          <option value="gemini-3.6-flash">Gemini 3.6 Flash (前世代／無料枠あり)</option>
+          <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite (超高速・低コスト／無料枠あり)</option>
+          <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash-Lite (最安／無料枠あり)</option>
+          <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (高精度・分析用／有料のみ)</option>
         </select>
-        <div id="gemini-pricing-note" style="font-size:11px;line-height:1.6;color:var(--muted);margin-top:4px">💎 Gemini 4 Argon は無料枠では使えません（APIキーが有料プランのときだけ動きます）。料金は100万トークンあたり入力$2・出力$10で、2026年12月1日から入力$4・出力$20に上がります（Google公式の料金表・2026年10月時点）。Web検索は月5,000回まで無料（Gemini 3以降のモデル全体での合計）。</div>
+        <div id="gemini-pricing-note" style="font-size:11px;line-height:1.6;color:var(--muted);margin-top:4px">💎 Gemini 4 Carbon / Argon は無料枠では使えません（APIキーが有料プランのときだけ動きます）。料金は100万トークンあたり入力$2・出力$10で、2026年12月1日から入力$4・出力$20に上がります。Gemini 4 Hydrogen は無料枠があり、有料時は入力$1.50・出力$7.50です（Google公式の料金表・2026年11月17日時点）。Web検索は有料プランで月5,000回まで無料（Gemini 3以降のモデル全体での合計、無料枠では検索は使えません）。</div>
         <div id="model-mode-note" style="font-size:11px;line-height:1.6;color:var(--muted);margin-top:4px"></div>
       </div>
 
       <div class="form-row">
         <label class="lbl">🤖 AI利用量</label>
         <div id="ai-usage-c"><div style="font-size:12px;color:var(--muted)">読み込み中…</div></div>
+      </div>
+
+      <div class="form-row">
+        <label class="lbl">💰 モデルの料金と無料枠</label>
+        <div id="gemini-cost-c"><div style="font-size:12px;color:var(--muted)">読み込み中…</div></div>
       </div>
 
       <button class="btn btn-p" onclick="saveSettings()">設定を保存する</button>

@@ -2,19 +2,27 @@
 // AI SERVICE & DATA LOGIC
 // ============================================================
 // 使用可能なモデル（新しい順）。DEFAULT_MODEL は設定未保存時に使われる
-const DEFAULT_MODEL = 'gemini-3.8-flash';
-// 2026-10-23 に公式（ai.google.dev の Models / Deprecations）で確認。
-// gemini-3.7-flash と gemini-3.5-flash は、呼ぶとそれぞれ 3.8-flash / 3.6-flash に自動で転送されるようになったので一覧から外した
-// （残すと「3.7を選んだのに中身は3.8」になり、混雑時の代替先としても同じモデルを叩き直すだけになる）
-// gemini-4-argon は最上位の推論モデル。有料プランのキーでしか使えず（無料枠なし）、料金も高いので既定にはしない。
-// 混雑時の代替先（FALLBACK_MODELS）にも入れない（Flash が混んだときに勝手に高いモデルへ切り替わらないように）。
-const AVAILABLE_MODELS = ['gemini-4-argon','gemini-3.8-flash','gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.1-pro-preview','gemini-2.5-flash'];
+// 2026-11-17 に公式（ai.google.dev の Pricing / Models / Deprecations）で確認。
+// ・Gemini 4 Hydrogen（2026-11-12 公開）が 3.8 Flash の後継として Google 推奨。
+//   Gemini 4 で初めて無料枠があり、単価は $1.50/$7.50（3.8 Flash が 2027-01-01 に
+//   値上げされて同額になる金額）。既定モデルをこちらへ切り替えた。
+// ・Gemini 4 Carbon（2026-11-10 GA）は最上位の推論モデル。Argon と同額で無料枠なし。
+// ・gemini-2.5-flash / 2.5-pro は 2026-11-02 に提供終了が告知され、2026-12-01 から
+//   それぞれ 3.5-flash-lite / 3.8-flash へ自動転送されるので一覧から外した
+//   （残すと「2.5を選んだのに中身は別モデル」になる。過去の利用量の単価計算用に
+//   AI_PRICES / AI_MODEL_INFO には行を残してある）
+// ・gemini-3.7-flash と gemini-3.5-flash も、呼ぶと別モデルへ自動転送されるため外したまま。
+// Argon / Carbon は有料プランのキーでしか使えず（無料枠なし）、料金も高いので既定にはしない。
+// 混雑時の代替先（FALLBACK_MODELS）にも入れない（Flash 系が混んだときに勝手に高いモデルへ切り替わらないように）。
+const DEFAULT_MODEL = 'gemini-4-hydrogen';
+const AVAILABLE_MODELS = ['gemini-4-carbon','gemini-4-argon','gemini-4-hydrogen','gemini-3.8-flash','gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.1-flash-lite','gemini-3.1-pro-preview'];
 // 明示キャッシュ（cachedContents）に対応していないモデル。暗黙キャッシュは効く
-const NO_EXPLICIT_CACHE_MODELS = ['gemini-4-argon'];
+// （Gemini 4 系は公式料金表で「Implicit caching only」と明記されている）
+const NO_EXPLICIT_CACHE_MODELS = ['gemini-4-carbon','gemini-4-argon','gemini-4-hydrogen'];
 // thinkingLevel（low / high）を送れるモデル。2.5 系に送ると弾かれる
 const supportsThinkingLevel = (model) => /^gemini-[34]/.test(String(model || ''));
 // 503（混雑）時に順番に試す代替モデル。廃止済みモデルや、別モデルへの転送になったIDは含めないこと
-const FALLBACK_MODELS = ['gemini-3.6-flash','gemini-3.5-flash-lite','gemini-2.5-flash'];
+const FALLBACK_MODELS = ['gemini-3.8-flash','gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.1-flash-lite'];
 // inlineData を使う場合、リクエスト全体で 20MB が上限（base64 は元サイズの約1.33倍になる）
 const INLINE_LIMIT_BYTES = 14 * 1024 * 1024;
 const API_TIMEOUT_MS = 180000;
@@ -29,31 +37,91 @@ const THINKING_BY_PURPOSE = { fast: 'low', normal: null, deep: 'high' };
 // AI の単価と概算コスト（利用量表示用）
 // ------------------------------------------------------------
 // 単価は Google 公式料金ページ（ai.google.dev/pricing）で
-// 2026-10-27 に確認した公開価格（USD / 100万トークン、標準料金）。
+// 2026-11-17 に確認した公開価格（USD / 100万トークン、標準料金）。
 // 期間で単価が変わるモデルは until（その日まで適用）で切り替える。
 // 円換算は 1ドル=155円 の概算レート。あくまで目安の表示であり、
 // 実際の請求は Google 側の明細が正。
+// 訂正履歴: 3.5 Flash-Lite の旧値 $0.10/$0.40 は 2.5 Flash-Lite の単価だった
+// （公式は $0.30/$2.50）。3.6 Flash にも 2027-01-01 の値上げがある。
 // ============================================================
 const AI_USD_JPY = 155;
 const AI_PRICES = {
+  'gemini-4-carbon':      [{ until: '2026-11-30', input: 2.00, output: 10.00 }, { until: null, input: 4.00, output: 20.00 }],
   'gemini-4-argon':       [{ until: '2026-11-30', input: 2.00, output: 10.00 }, { until: null, input: 4.00, output: 20.00 }],
+  'gemini-4-hydrogen':    [{ until: null, input: 1.50, output: 7.50 }],
   'gemini-3.8-flash':     [{ until: '2026-12-31', input: 0.75, output: 3.75 }, { until: null, input: 1.50, output: 7.50 }],
-  'gemini-3.6-flash':     [{ until: null, input: 0.75, output: 3.75 }],
-  'gemini-3.5-flash-lite': [{ until: null, input: 0.10, output: 0.40 }],
+  'gemini-3.6-flash':     [{ until: '2026-12-31', input: 0.75, output: 3.75 }, { until: null, input: 1.50, output: 7.50 }],
+  'gemini-3.5-flash-lite': [{ until: null, input: 0.30, output: 2.50 }],
+  'gemini-3.1-flash-lite': [{ until: null, input: 0.25, output: 1.50 }],
   'gemini-3.1-pro-preview': [{ until: null, input: 2.00, output: 12.00 }],
+  // 提供終了モデルは過去の利用量の単価計算のためだけに残す（選択肢には出さない）
   'gemini-2.5-flash':     [{ until: null, input: 0.30, output: 2.50 }]
 };
+
+// ============================================================
+// モデルごとの表示情報（無料枠・ひとこと説明・無料枠の上限の目安）
+// ------------------------------------------------------------
+// freeTier は公式料金表の Free Tier 欄（2026-11-17 確認）。
+// 無料枠の回数上限は Google が固定値を公表しておらず、プロジェクトごとに
+// AI Studio（aistudio.google.com/rate-limit）で確認するのが正。
+// freeGuide は利用者報告ベースの目安であり、保証値ではないことを表示側でも添える。
+// ============================================================
+const AI_MODEL_INFO = {
+  'gemini-4-carbon':      { name: 'Gemini 4 Carbon', freeTier: false, freeGuide: '', note: '最も高性能な推論モデル（有料のみ）' },
+  'gemini-4-argon':       { name: 'Gemini 4 Argon', freeTier: false, freeGuide: '', note: '高性能な推論モデル（有料のみ）' },
+  'gemini-4-hydrogen':    { name: 'Gemini 4 Hydrogen', freeTier: true, freeGuide: '', note: 'Gemini 4 の高速・日常用。3.8 Flash の後継として Google 推奨' },
+  'gemini-3.8-flash':     { name: 'Gemini 3.8 Flash', freeTier: true, freeGuide: '目安 5回/分・20回/日', note: '従来の推奨モデル。2027年1月1日に値上げされ Hydrogen と同額になる' },
+  'gemini-3.6-flash':     { name: 'Gemini 3.6 Flash', freeTier: true, freeGuide: '目安 5回/分・20回/日', note: '前世代の Flash。単価は 3.8 と同じ' },
+  'gemini-3.5-flash-lite': { name: 'Gemini 3.5 Flash-Lite', freeTier: true, freeGuide: '目安 15回/分・500回/日', note: '高速・低コスト。軽い処理（抽出・要約）用' },
+  'gemini-3.1-flash-lite': { name: 'Gemini 3.1 Flash-Lite', freeTier: true, freeGuide: '目安 15回/分・500回/日', note: '最安モデル。大量の軽い処理用' },
+  'gemini-3.1-pro-preview': { name: 'Gemini 3.1 Pro Preview', freeTier: false, freeGuide: '', note: '高精度・分析用（有料のみ。入力200kトークン超は割増）' },
+  'gemini-2.5-flash':     { name: 'Gemini 2.5 Flash（提供終了）', freeTier: true, freeGuide: '', note: '2026年12月1日から 3.5 Flash-Lite へ自動転送される' }
+};
+// 1回の利用の目安として使う想定トークン数（チャット1往復の目安表示用）
+const AI_TYPICAL_CALL = { inTok: 8000, outTok: 2000 };
 const AiCost = {
-  // その日付に効く単価。表に無いモデルは Flash 系として概算する
+  // その日付に効く単価。表に無いモデルは既定モデルとして概算する
   priceFor: (model, dateStr) => {
-    const tiers = AI_PRICES[model] || AI_PRICES['gemini-3.8-flash'];
+    const tiers = AI_PRICES[model] || AI_PRICES[DEFAULT_MODEL];
     for (const t of tiers) { if (!t.until || (dateStr || '') <= t.until) return t; }
     return tiers[tiers.length - 1];
+  },
+  // 次の単価改定（あれば { from, input, output }）。表示で「〜から値上げ」を出すため
+  nextPriceFor: (model, dateStr) => {
+    const tiers = AI_PRICES[model] || [];
+    const d = dateStr || new Date().toISOString().slice(0, 10);
+    for (let i = 0; i < tiers.length - 1; i++) {
+      if (tiers[i].until && d <= tiers[i].until) {
+        const n = tiers[i + 1];
+        // until の翌日が開始日
+        const dt = new Date(tiers[i].until + 'T00:00:00Z'); dt.setUTCDate(dt.getUTCDate() + 1);
+        return { from: dt.toISOString().slice(0, 10), input: n.input, output: n.output };
+      }
+    }
+    return null;
   },
   // 概算コスト（円）。dateStr は単価の期間判定用（省略時は今日）
   estimateYen: (model, inTok, outTok, dateStr) => {
     const p = AiCost.priceFor(model, dateStr || new Date().toISOString().slice(0, 10));
     return ((Number(inTok) || 0) * p.input + (Number(outTok) || 0) * p.output) / 1000000 * AI_USD_JPY;
+  },
+  infoFor: (model) => AI_MODEL_INFO[model] || { name: model, freeTier: null, freeGuide: '', note: '' },
+  isFreeTier: (model) => AiCost.infoFor(model).freeTier === true,
+  // チャット1往復（入力8,000＋出力2,000トークン想定）の有料時の概算（円）
+  perCallYen: (model, dateStr) => AiCost.estimateYen(model, AI_TYPICAL_CALL.inTok, AI_TYPICAL_CALL.outTok, dateStr),
+  // 設定画面に出す1行説明（純粋関数・テスト対象）
+  // 例: 🆓 無料枠あり（目安 5回/分・20回/日）／ 有料時は 100万トークンあたり入力$0.75・出力$3.75（1回約¥1.7）
+  describeModel: (model, dateStr) => {
+    const info = AiCost.infoFor(model);
+    const d = dateStr || new Date().toISOString().slice(0, 10);
+    const p = AiCost.priceFor(model, d);
+    const parts = [];
+    if (info.freeTier === true) parts.push('🆓 無料枠あり' + (info.freeGuide ? '（' + info.freeGuide + '）' : ''));
+    else if (info.freeTier === false) parts.push('💎 無料枠なし（有料のみ）');
+    parts.push('有料時は100万トークンあたり入力$' + p.input + '・出力$' + p.output + '（1回約¥' + (Math.round(AiCost.perCallYen(model, d) * 10) / 10).toLocaleString() + '）');
+    const nx = AiCost.nextPriceFor(model, d);
+    if (nx) parts.push(nx.from + 'から入力$' + nx.input + '・出力$' + nx.output + 'に改定');
+    return parts.join('／');
   }
 };
 

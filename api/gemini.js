@@ -19,7 +19,7 @@
 const lib = require('./_pushlib');
 
 // アプリ側 AVAILABLE_MODELS（public/js/03-ai.js）と揃えること
-const ALLOWED_MODELS = ['gemini-4-argon', 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-pro-preview', 'gemini-2.5-flash'];
+const ALLOWED_MODELS = ['gemini-4-carbon', 'gemini-4-argon', 'gemini-4-hydrogen', 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview'];
 // Vercel Functions のリクエスト上限（4.5MB）に収める
 const MAX_BODY_BYTES = 4.5 * 1024 * 1024;
 // アプリの通常利用（最大 4096）の倍まで許可し、それ以上は切り詰める

@@ -75,8 +75,12 @@ const AiUsageUI = {
     const rows = Object.keys(t.byModel).sort().map(m => {
       const b = t.byModel[m];
       const y = AiCost.estimateYen(m, b.in, b.out, ym + '-15');
-      return '<div class="row" style="padding:4px 0"><div style="flex:1;min-width:0"><div class="row-title" style="font-size:12px">' + esc(m) + '</div>'
-        + '<div class="row-sub">' + b.calls + '回 ／ 入力 ' + b.in.toLocaleString() + ' ・ 出力 ' + b.out.toLocaleString() + ' トークン</div></div>'
+      const info = AiCost.infoFor(m);
+      const pr = AiCost.priceFor(m, ym + '-15');
+      const badge = info.freeTier === true ? '🆓無料枠あり' : info.freeTier === false ? '💎有料のみ' : '';
+      return '<div class="row" style="padding:4px 0"><div style="flex:1;min-width:0"><div class="row-title" style="font-size:12px">' + esc(info.name || m) + '</div>'
+        + '<div class="row-sub">' + b.calls + '回 ／ 入力 ' + b.in.toLocaleString() + ' ・ 出力 ' + b.out.toLocaleString() + ' トークン'
+        + (badge ? '<br>' + esc(badge) + ' ・ 単価 入力$' + pr.input + '・出力$' + pr.output + '/100万tok' : '') + '</div></div>'
         + '<div style="font-size:12px;font-weight:700">約¥' + Math.round(y).toLocaleString() + '</div></div>';
     }).join('');
     el.innerHTML = '<div style="font-size:13px;font-weight:700;margin-bottom:4px">今月（' + esc(ym) + '）のAI利用量：' + t.calls + '回 ／ 概算 約¥' + Math.round(yen).toLocaleString() + '</div>'
@@ -101,6 +105,53 @@ const AiUsageUI = {
   }
 };
 window.AiUsageUI = AiUsageUI;
+
+// ============================================================
+// モデル料金・無料枠の一覧（設定画面「💰 モデルの料金と無料枠」）
+// データは 03-ai.js の AI_PRICES / AI_MODEL_INFO（公式料金表 2026-11-17 確認）。
+// _tableHtml は純粋関数（SelfTest 対象）。
+// ============================================================
+const AiCostUI = {
+  _tableHtml: (dateStr) => {
+    const d = dateStr || new Date().toISOString().slice(0, 10);
+    const rows = AVAILABLE_MODELS.map(m => {
+      const info = AiCost.infoFor(m);
+      const pr = AiCost.priceFor(m, d);
+      const nx = AiCost.nextPriceFor(m, d);
+      const freeCell = info.freeTier === true
+        ? '🆓 無料枠あり' + (info.freeGuide ? '<br><span style="color:var(--muted)">' + esc(info.freeGuide) + '</span>' : '')
+        : '💎 有料のみ';
+      const priceCell = '入力$' + pr.input + '・出力$' + pr.output + (nx ? '<br><span style="color:var(--muted)">' + esc(nx.from) + '〜 入力$' + nx.input + '・出力$' + nx.output + '</span>' : '');
+      const perCall = Math.round(AiCost.perCallYen(m, d) * 10) / 10;
+      const star = m === DEFAULT_MODEL ? ' ⭐' : '';
+      return '<tr>'
+        + '<td style="padding:4px 6px;border-bottom:1px solid var(--line)"><b>' + esc(info.name) + star + '</b><br><span style="color:var(--muted);font-size:11px">' + esc(info.note || '') + '</span></td>'
+        + '<td style="padding:4px 6px;border-bottom:1px solid var(--line);font-size:11px;white-space:nowrap">' + freeCell + '</td>'
+        + '<td style="padding:4px 6px;border-bottom:1px solid var(--line);font-size:11px;white-space:nowrap">' + priceCell + '</td>'
+        + '<td style="padding:4px 6px;border-bottom:1px solid var(--line);font-size:11px;white-space:nowrap;text-align:right">約¥' + perCall.toLocaleString() + '</td>'
+        + '</tr>';
+    }).join('');
+    return '<table style="width:100%;border-collapse:collapse;font-size:12px">'
+      + '<thead><tr>'
+      + '<th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)">モデル</th>'
+      + '<th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)">無料枠</th>'
+      + '<th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)">有料単価（/100万トークン）</th>'
+      + '<th style="text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)">1回の目安</th>'
+      + '</tr></thead><tbody>' + rows + '</tbody></table>'
+      + '<div style="font-size:11px;line-height:1.7;color:var(--muted);margin-top:6px">'
+      + '・「1回の目安」はチャット1往復（入力8,000＋出力2,000トークン）を<b>有料で</b>使った場合の概算（$1=¥' + AI_USD_JPY + '換算）。実際の請求は Google の明細が正です。<br>'
+      + '・無料枠は、課金を有効にしていないプロジェクトのAPIキーでのみ適用されます。プリペイド等の課金を有効にしたキーでは、無料枠のあるモデルでも1回目から単価どおりに引かれます。<br>'
+      + '・無料枠の回数上限は Google が固定値を公表していません（「目安」は利用者報告ベース）。正確な上限は <a href="https://aistudio.google.com/rate-limit" target="_blank" rel="noopener">AI Studio のレート制限ページ</a> が正です。無料枠では、送った内容が Google の製品改善に使われる場合があります（有料では使われません）。<br>'
+      + '・Web検索（グラウンディング）は有料プランで月5,000回まで無料（Gemini 3以降のモデル全体の合計）、以降は1,000回あたり$14。無料枠では検索は使えません。'
+      + '</div>';
+  },
+  render: () => {
+    const c = document.getElementById('gemini-cost-c');
+    if (!c) return;
+    try { c.innerHTML = AiCostUI._tableHtml(); } catch (e) { c.innerHTML = '<div style="font-size:12px;color:var(--muted)">料金表を表示できませんでした</div>'; }
+  }
+};
+window.AiCostUI = AiCostUI;
 
 // ============================================================
 // サーバー診断（バックアップ・健全性・サーバー側エラー）
@@ -382,5 +433,6 @@ window.HouseholdReportUI = HouseholdReportUI;
 document.addEventListener('DOMContentLoaded', () => {
   // 起動を妨げないよう少し遅らせて読みに行く
   setTimeout(() => { try { ServerDiagUI.loadAll(); } catch (e) {} }, 3500);
+  setTimeout(() => { try { AiCostUI.render(); } catch (e) {} }, 2500);
   setTimeout(() => { try { LiveDocsUI.load(); } catch (e) {} }, 4200);
 });

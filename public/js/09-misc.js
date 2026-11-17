@@ -247,6 +247,8 @@ document.addEventListener('DOMContentLoaded', () => {
     'gemini-2.5-flash-lite': 'gemini-3.5-flash-lite',
     'gemini-2.5-flash-lite-preview-09-2025': 'gemini-3.5-flash-lite',
     'gemini-2.5-pro': 'gemini-3.1-pro-preview',
+    // 2026-12-01 から Google 側で 3.5-flash-lite へ自動転送される（2026-11-17 確認）。転送先に合わせて先に寄せる
+    'gemini-2.5-flash': 'gemini-3.5-flash-lite',
     // Google側で別モデルへの転送になったID（2026-10 確認）
     'gemini-3.7-flash': 'gemini-3.8-flash',
     'gemini-3.5-flash': 'gemini-3.6-flash'
