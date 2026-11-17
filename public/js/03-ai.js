@@ -64,16 +64,17 @@ const AI_PRICES = {
 // freeTier は公式料金表の Free Tier 欄（2026-11-17 確認）。
 // 無料枠の回数上限は Google が固定値を公表しておらず、プロジェクトごとに
 // AI Studio（aistudio.google.com/rate-limit）で確認するのが正。
-// freeGuide は利用者報告ベースの目安であり、保証値ではないことを表示側でも添える。
+// freeGuide / freeRpm / freeRpd は利用者報告ベースの目安であり、保証値ではないことを表示側でも添える。
+// Hydrogen は上限の目安が未公表のため null（件数だけ表示する）。
 // ============================================================
 const AI_MODEL_INFO = {
   'gemini-4-carbon':      { name: 'Gemini 4 Carbon', freeTier: false, freeGuide: '', note: '最も高性能な推論モデル（有料のみ）' },
   'gemini-4-argon':       { name: 'Gemini 4 Argon', freeTier: false, freeGuide: '', note: '高性能な推論モデル（有料のみ）' },
-  'gemini-4-hydrogen':    { name: 'Gemini 4 Hydrogen', freeTier: true, freeGuide: '', note: 'Gemini 4 の高速・日常用。3.8 Flash の後継として Google 推奨' },
-  'gemini-3.8-flash':     { name: 'Gemini 3.8 Flash', freeTier: true, freeGuide: '目安 5回/分・20回/日', note: '従来の推奨モデル。2027年1月1日に値上げされ Hydrogen と同額になる' },
-  'gemini-3.6-flash':     { name: 'Gemini 3.6 Flash', freeTier: true, freeGuide: '目安 5回/分・20回/日', note: '前世代の Flash。単価は 3.8 と同じ' },
-  'gemini-3.5-flash-lite': { name: 'Gemini 3.5 Flash-Lite', freeTier: true, freeGuide: '目安 15回/分・500回/日', note: '高速・低コスト。軽い処理（抽出・要約）用' },
-  'gemini-3.1-flash-lite': { name: 'Gemini 3.1 Flash-Lite', freeTier: true, freeGuide: '目安 15回/分・500回/日', note: '最安モデル。大量の軽い処理用' },
+  'gemini-4-hydrogen':    { name: 'Gemini 4 Hydrogen', freeTier: true, freeGuide: '', freeRpm: null, freeRpd: null, note: 'Gemini 4 の高速・日常用。3.8 Flash の後継として Google 推奨' },
+  'gemini-3.8-flash':     { name: 'Gemini 3.8 Flash', freeTier: true, freeGuide: '目安 5回/分・20回/日', freeRpm: 5, freeRpd: 20, note: '従来の推奨モデル。2027年1月1日に値上げされ Hydrogen と同額になる' },
+  'gemini-3.6-flash':     { name: 'Gemini 3.6 Flash', freeTier: true, freeGuide: '目安 5回/分・20回/日', freeRpm: 5, freeRpd: 20, note: '前世代の Flash。単価は 3.8 と同じ' },
+  'gemini-3.5-flash-lite': { name: 'Gemini 3.5 Flash-Lite', freeTier: true, freeGuide: '目安 15回/分・500回/日', freeRpm: 15, freeRpd: 500, note: '高速・低コスト。軽い処理（抽出・要約）用' },
+  'gemini-3.1-flash-lite': { name: 'Gemini 3.1 Flash-Lite', freeTier: true, freeGuide: '目安 15回/分・500回/日', freeRpm: 15, freeRpd: 500, note: '最安モデル。大量の軽い処理用' },
   'gemini-3.1-pro-preview': { name: 'Gemini 3.1 Pro Preview', freeTier: false, freeGuide: '', note: '高精度・分析用（有料のみ。入力200kトークン超は割増）' },
   'gemini-2.5-flash':     { name: 'Gemini 2.5 Flash（提供終了）', freeTier: true, freeGuide: '', note: '2026年12月1日から 3.5 Flash-Lite へ自動転送される' }
 };

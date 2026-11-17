@@ -154,6 +154,95 @@ const AiCostUI = {
 window.AiCostUI = AiCostUI;
 
 // ============================================================
+// 無料枠メーター（設定画面「🆓 無料枠メーター（自動更新）」）
+// ------------------------------------------------------------
+// 中継サーバーが live/aiUsage に残す直近48時間の呼び出しログ（log）から、
+// 「無料枠の日次上限（太平洋時間の深夜0時にリセット）に対して今日何回
+// 使ったか・あと何回か」を計算して出す。1分ごとに取り直して更新する。
+// 上限値は Google が固定値を公表していないため、03-ai.js の freeRpd /
+// freeRpm（利用者報告ベースの目安）を使う。公式の残量は AI Studio が正。
+// ※ 中継（Vercel版）を通った生成だけが対象。端末キーで直接呼んだ分は数えない。
+// ※ 課金を有効にしたキーでは無料枠で止まらず、単価どおりに引かれる。
+// ============================================================
+const FreeTierUI = {
+  _usage: null,
+
+  // America/Los_Angeles の UTC オフセット（ms）。DST は Intl が解決する
+  _ptOffsetMs: (ms) => {
+    const d = new Date(ms);
+    const pt = new Date(d.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+    const utc = new Date(d.toLocaleString('en-US', { timeZone: 'UTC' }));
+    return pt.getTime() - utc.getTime();
+  },
+  // 太平洋時間で「今日」の開始・終了（epoch ms）
+  _ptDayWindow: (ms) => {
+    const off = FreeTierUI._ptOffsetMs(ms);
+    const wall = ms + off;
+    const dayStartWall = Math.floor(wall / 86400000) * 86400000;
+    let start = dayStartWall - off;
+    const off2 = FreeTierUI._ptOffsetMs(start);
+    if (off2 !== off) start = dayStartWall - off2;
+    // 終端は「翌日の壁時計0時」をその時点のオフセットで戻す（DST の日は 23/25 時間になる）
+    const nextWall = dayStartWall + 86400000;
+    let end = nextWall - FreeTierUI._ptOffsetMs(nextWall - off);
+    const offE = FreeTierUI._ptOffsetMs(end);
+    if (nextWall - offE !== end) end = nextWall - offE;
+    return { start, end };
+  },
+  _count: (log, model, start, end) => (Array.isArray(log) ? log : []).reduce((n, e) => n + (e && e.m === model && e.t >= start && e.t < end ? 1 : 0), 0),
+  _rpmCount: (log, model, nowMs) => FreeTierUI._count(log, model, nowMs - 60000, nowMs + 1),
+
+  // メーター全体の HTML（nowMs を引数に取る純粋関数・テスト対象）
+  _meterHtml: (usage, nowMs) => {
+    const now = nowMs || Date.now();
+    const win = FreeTierUI._ptDayWindow(now);
+    const resetStr = new Date(win.end).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const head = '<div style="font-size:12px;margin-bottom:6px">無料枠の日次上限は<b>太平洋時間の深夜0時</b>にリセット（次回: ' + esc(resetStr) + '）。今日の利用ペースです。</div>';
+    if (!usage || !Array.isArray(usage.log)) {
+      return head + '<div style="font-size:12px;color:var(--muted)">呼び出しログは、これからの利用から貯まります（中継サーバーの記録をもとに計算します）。</div>'
+        + '<div style="font-size:11px;color:var(--muted);line-height:1.6;margin-top:4px">※ 上限は目安です。正確な残量は <a href="https://aistudio.google.com/rate-limit" target="_blank" rel="noopener">AI Studio</a> が正です。</div>';
+    }
+    const log = usage.log;
+    const rows = AVAILABLE_MODELS.filter(m => AiCost.isFreeTier(m)).map(m => {
+      const info = AiCost.infoFor(m);
+      const used = FreeTierUI._count(log, m, win.start, win.end);
+      const rpm = FreeTierUI._rpmCount(log, m, now);
+      let bar = '', main = '';
+      if (info.freeRpd) {
+        const remain = Math.max(0, info.freeRpd - used);
+        const pct = Math.min(100, Math.round(used / info.freeRpd * 100));
+        const color = pct >= 90 ? '#e5484d' : pct >= 70 ? '#f5a524' : '#30a46c';
+        bar = '<div style="height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:4px 0"><div style="height:100%;width:' + pct + '%;background:' + color + '"></div></div>';
+        main = '今日 ' + used + '回 / 目安 ' + info.freeRpd + '回 ・ <b>あと約 ' + remain + '回</b>';
+      } else {
+        main = '今日 ' + used + '回（上限の目安は未公表のため、残り回数は出せません）';
+      }
+      const rpmLine = info.freeRpm ? '<div style="font-size:11px;color:var(--muted)">直近1分: ' + rpm + '回（目安上限 ' + info.freeRpm + '回/分）</div>' : '';
+      return '<div style="padding:5px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;gap:8px;font-size:12px"><span><b>' + esc(info.name) + '</b></span><span>' + main + '</span></div>' + bar + rpmLine + '</div>';
+    }).join('');
+    return head + rows
+      + '<div style="font-size:11px;color:var(--muted);line-height:1.7;margin-top:6px">'
+      + '※ 数えているのは中継（Vercel版）を通った生成だけです。上限は利用者報告ベースの目安で、正確な残量は <a href="https://aistudio.google.com/rate-limit" target="_blank" rel="noopener">AI Studio のレート制限ページ</a> が正です。<br>'
+      + '※ 課金（プリペイド等）を有効にしたキーでは、無料枠の上限に達しても止まらず、単価どおりに引かれます。このメーターは「無料枠のキーだった場合」の消費ペースの目安です。'
+      + '</div>';
+  },
+
+  load: async () => {
+    try {
+      const s = await _fsReadStringField(AI_USAGE_DOC_URL, 'usage');
+      if (s) { try { FreeTierUI._usage = JSON.parse(s); } catch (e) { /* 壊れていれば未取得扱い */ } }
+    } catch (e) { /* 取れなければ前回の表示のまま */ }
+    FreeTierUI.render();
+  },
+  render: () => {
+    const c = document.getElementById('free-tier-c');
+    if (!c) return;
+    try { c.innerHTML = FreeTierUI._meterHtml(FreeTierUI._usage, Date.now()); } catch (e) { /* 表示だけの問題に留める */ }
+  }
+};
+window.FreeTierUI = FreeTierUI;
+
+// ============================================================
 // サーバー診断（バックアップ・健全性・サーバー側エラー）
 // ============================================================
 const ServerDiagUI = {
@@ -434,5 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 起動を妨げないよう少し遅らせて読みに行く
   setTimeout(() => { try { ServerDiagUI.loadAll(); } catch (e) {} }, 3500);
   setTimeout(() => { try { AiCostUI.render(); } catch (e) {} }, 2500);
+  setTimeout(() => { try { FreeTierUI.load(); } catch (e) {} }, 4000);
+  setInterval(() => { try { FreeTierUI.load(); } catch (e) {} }, 60 * 1000);
   setTimeout(() => { try { LiveDocsUI.load(); } catch (e) {} }, 4200);
 });

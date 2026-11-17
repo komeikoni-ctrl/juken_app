@@ -245,6 +245,12 @@ async function recordUsageQuiet(model, usage) {
     const cur = doc.days[day][model] || { calls: 0, in: 0, out: 0 };
     cur.calls += 1; cur.in += inTok; cur.out += outTok;
     doc.days[day][model] = cur;
+    // 無料枠メーター用に直近48時間の呼び出しログも残す（api/gemini.js と同じ形式）
+    if (!Array.isArray(doc.log)) doc.log = [];
+    const nowMs = Date.now();
+    doc.log.push({ t: nowMs, m: model, i: inTok, o: outTok });
+    const cutoff = nowMs - 48 * 3600 * 1000;
+    doc.log = doc.log.filter(e => e && e.t >= cutoff).slice(-2000);
     const keys = Object.keys(doc.days).sort();
     while (keys.length > 62) delete doc.days[keys.shift()];
     doc.updatedAt = new Date().toISOString();

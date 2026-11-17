@@ -92,6 +92,14 @@ async function recordUsage(model, usage) {
   const cur = doc.days[day][model] || { calls: 0, in: 0, out: 0 };
   cur.calls += 1; cur.in += inTok; cur.out += outTok;
   doc.days[day][model] = cur;
+  // 無料枠メーター用に、直近48時間の呼び出しログ（時刻・モデル・トークン）も残す。
+  // 無料枠の日次上限は太平洋時間の深夜0時でリセットされるため、日次集計だけでは
+  // 「あと何回使えるか」が計算できない。古い分は記録のたびに落とす。
+  if (!Array.isArray(doc.log)) doc.log = [];
+  const nowMs = Date.now();
+  doc.log.push({ t: nowMs, m: model, i: inTok, o: outTok });
+  const cutoff = nowMs - 48 * 3600 * 1000;
+  doc.log = doc.log.filter(e => e && e.t >= cutoff).slice(-2000);
   // 肥大化防止: 直近62日分だけ残す
   const keys = Object.keys(doc.days).sort();
   while (keys.length > 62) delete doc.days[keys.shift()];

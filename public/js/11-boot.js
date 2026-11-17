@@ -1567,6 +1567,25 @@ SelfTest.add('料金表UI: 全モデルの行と注意書きが出る', () => {
   assert(!html.includes('Gemini 2.5 Flash'), '提供終了モデルは表に出さないこと');
 });
 
+SelfTest.add('無料枠メーター: 太平洋時間の窓と残り回数', () => {
+  // 2026-11-17 12:00Z は太平洋時間 11/17 04:00（PST）。窓は 11/17 08:00Z 〜 11/18 08:00Z
+  const w = FreeTierUI._ptDayWindow(Date.parse('2026-11-17T12:00:00Z'));
+  assertEq(new Date(w.start).toISOString(), '2026-11-17T08:00:00.000Z', '太平洋時間の深夜0時が窓の開始');
+  assertEq(new Date(w.end).toISOString(), '2026-11-18T08:00:00.000Z', '翌日の深夜0時が窓の終了');
+  const log = [
+    { t: Date.parse('2026-11-17T09:00:00Z'), m: 'gemini-3.8-flash' },
+    { t: Date.parse('2026-11-17T07:59:00Z'), m: 'gemini-3.8-flash' },
+    { t: Date.parse('2026-11-17T10:00:00Z'), m: 'gemini-3.5-flash-lite' }
+  ];
+  assertEq(FreeTierUI._count(log, 'gemini-3.8-flash', w.start, w.end), 1, '窓の中の呼び出しだけ数える');
+  const html = FreeTierUI._meterHtml({ log }, Date.parse('2026-11-17T12:00:00Z'));
+  assert(html.includes('あと約 19回'), 'Flash は目安20回/日なので残り19回と出る');
+  assert(html.includes('Gemini 4 Hydrogen'), 'Hydrogen の行も出る（残り回数は出せない旨つき）');
+  assert(html.includes('未公表'), 'Hydrogen は上限未公表と明記する');
+  const empty = FreeTierUI._meterHtml(null, Date.parse('2026-11-17T12:00:00Z'));
+  assert(empty.includes('貯まります'), 'ログが無ければ「これから貯まる」と出す');
+});
+
 SelfTest.add('AI利用量: 月次集計とモデル別内訳', () => {
   const usage = { days: {
     '2026-10-01': { 'gemini-3.8-flash': { calls: 2, in: 100, out: 50 } },
