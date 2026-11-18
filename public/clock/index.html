@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>スタンバイ時計</title>
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="スタンバイ時計">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--pink:#f3d9e8;--dim:#9a8f98;--orange:#ff9500;--panel:#141114;--line:#2c262c}
+html,body{height:100%}
+body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none}
+#app{display:flex;flex-direction:column;height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+nav{display:flex;gap:6px;justify-content:center;padding:10px 8px 4px;flex:0 0 auto}
+nav button{position:relative;background:var(--panel);color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:8px 16px;font-size:15px;font-weight:600}
+nav button.on{color:#fff;background:#2a2129;border-color:#4a3a48}
+nav button .dot{position:absolute;top:6px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--orange);display:none}
+nav button.run .dot{display:block}
+main{flex:1 1 auto;position:relative;min-height:0}
+.view{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;padding:8px 14px 14px;overflow-y:auto}
+.view.on{display:flex}
+/* clock view */
+#v-clock{flex-direction:row;gap:2vw}
+.clock-wrap{flex:1.15;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0}
+svg#analog{width:min(58vh,92vw);height:min(58vh,92vw);max-width:520px}
+.date-line{margin-top:6px;color:var(--pink);font-size:clamp(15px,2.4vw,22px);font-weight:600;letter-spacing:.04em}
+.digital{color:#fff;font-size:clamp(20px,3.4vw,34px);font-weight:700;font-variant-numeric:tabular-nums}
+.weather{flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0;padding-left:2vw}
+.w-city{font-size:clamp(20px,3.4vw,34px);font-weight:700;color:#fff}
+.w-city .pin{color:var(--pink);font-size:.75em}
+.w-temp{font-size:clamp(64px,13vw,132px);font-weight:800;line-height:1.02;color:var(--pink);font-variant-numeric:tabular-nums}
+.w-desc{font-size:clamp(17px,2.8vw,28px);color:#fff;margin-top:8px}
+.w-desc .wicon{font-size:1.15em;margin-right:6px}
+.w-hilo{margin-top:10px;font-size:clamp(17px,2.8vw,28px);color:var(--pink);font-variant-numeric:tabular-nums}
+.w-hilo small{font-size:.62em;vertical-align:top;margin:0 2px}
+.w-status{margin-top:14px;color:var(--dim);font-size:12.5px;line-height:1.5}
+.w-btns{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:var(--panel);border:1px solid var(--line);color:#fff;border-radius:999px;padding:7px 13px;font-size:13.5px;font-weight:600}
+.chip:active{background:#2a2129}
+@media (orientation:portrait){
+  #v-clock{flex-direction:column;gap:0}
+  svg#analog{width:min(52vw,44vh);height:min(52vw,44vh)}
+  .weather{align-items:center;text-align:center;padding-left:0}
+  .w-btns{justify-content:center}
+}
+/* generic panels */
+h2.ttl{font-size:20px;margin-bottom:10px;color:var(--pink)}
+.big-time{font-size:clamp(52px,11vw,96px);font-weight:800;font-variant-numeric:tabular-nums;line-height:1.05;text-align:center}
+.row{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:14px}
+.btn{background:#fff;color:#000;border:none;border-radius:999px;padding:13px 30px;font-size:17px;font-weight:700;min-width:128px}
+.btn.sub{background:var(--panel);color:#fff;border:1px solid var(--line)}
+.btn.warn{background:var(--orange);color:#000}
+.btn:disabled{opacity:.35}
+.presets{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.presets button{background:var(--panel);color:#fff;border:1px solid var(--line);border-radius:999px;padding:9px 15px;font-size:14.5px;font-weight:600}
+.tinputs{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:6px}
+.tinputs input{width:74px;background:var(--panel);border:1px solid var(--line);color:#fff;border-radius:12px;padding:10px 6px;font-size:22px;text-align:center;font-variant-numeric:tabular-nums}
+.tinputs span{color:var(--dim);font-size:13px}
+.ring-wrap{position:relative;width:min(56vh,80vw);height:min(56vh,80vw);max-width:420px}
+.ring-wrap svg{transform:rotate(-90deg);width:100%;height:100%}
+.ring-bg{fill:none;stroke:#241d24;stroke-width:10}
+.ring-fg{fill:none;stroke:var(--orange);stroke-width:10;stroke-linecap:round}
+.ring-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.list{width:min(520px,94vw);margin-top:16px;display:flex;flex-direction:column;gap:8px;max-height:38vh;overflow-y:auto}
+.lap-row,.alarm-row{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:11px 14px;font-variant-numeric:tabular-nums}
+.lap-row .n{color:var(--dim);width:64px}
+.lap-row .lt{margin-left:auto;font-weight:700}
+.alarm-row .tm{font-size:26px;font-weight:800}
+.alarm-row .lb{color:var(--dim);font-size:13.5px}
+.alarm-row .sp{flex:1}
+.sw{position:relative;width:52px;height:30px;flex:0 0 auto}
+.sw input{opacity:0;width:0;height:0}
+.sw i{position:absolute;inset:0;background:#3a323a;border-radius:999px;transition:.2s}
+.sw i:before{content:"";position:absolute;width:24px;height:24px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.sw input:checked + i{background:#30d158}
+.sw input:checked + i:before{transform:translateX(22px)}
+.del{background:none;border:none;color:#ff453a;font-size:19px;padding:4px 6px}
+.add-form{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+.add-form input[type=time]{background:var(--panel);border:1px solid var(--line);color:#fff;border-radius:12px;padding:10px;font-size:22px;color-scheme:dark}
+.add-form input[type=text]{background:var(--panel);border:1px solid var(--line);color:#fff;border-radius:12px;padding:12px;font-size:15px;width:130px}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:50;text-align:center;padding:20px}
+#overlay.on{display:flex}
+#overlay .o-ttl{font-size:clamp(30px,7vw,54px);font-weight:800;color:var(--orange)}
+#overlay .o-sub{font-size:clamp(20px,4.5vw,34px);margin:12px 0 26px;font-variant-numeric:tabular-nums}
+footer{flex:0 0 auto;text-align:center;color:#554c55;font-size:11.5px;padding:2px 0 8px}
+</style>
+</head>
+<body>
+<div id="app">
+  <nav>
+    <button data-v="clock" class="on">時計<span class="dot"></span></button>
+    <button data-v="timer" id="nav-timer">タイマー<span class="dot"></span></button>
+    <button data-v="alarm" id="nav-alarm">アラーム<span class="dot"></span></button>
+    <button data-v="stopwatch" id="nav-sw">ストップウォッチ<span class="dot"></span></button>
+  </nav>
+  <main>
+    <!-- CLOCK -->
+    <section class="view on" id="v-clock">
+      <div class="clock-wrap">
+        <svg id="analog" viewBox="0 0 200 200" aria-label="アナログ時計">
+          <g id="ticks"></g><g id="nums"></g>
+          <line id="h-hand" x1="100" y1="100" x2="100" y2="58" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+          <line id="m-hand" x1="100" y1="100" x2="100" y2="34" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+          <line id="s-hand" x1="100" y1="112" x2="100" y2="26" stroke="#ff9500" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="100" cy="100" r="5" fill="#ff9500"/>
+        </svg>
+        <div class="date-line" id="date-line">--月--日（-）</div>
+        <div class="digital" id="digital">--:--:--</div>
+      </div>
+      <div class="weather">
+        <div class="w-city"><span id="w-city">現在地</span> <span class="pin">➤</span></div>
+        <div class="w-temp"><span id="w-temp">16</span>°c</div>
+        <div class="w-desc"><span class="wicon" id="w-icon">☁️</span><span id="w-desc">曇り時々晴れ</span></div>
+        <div class="w-hilo"><small>最高</small><span id="w-hi">17</span> <small>最低</small><span id="w-lo">10</span></div>
+        <div class="w-status" id="w-status">天気を取得中…</div>
+        <div class="w-btns">
+          <button class="chip" id="w-refresh">現在地で更新</button>
+          <button class="chip" id="fs-btn">全画面</button>
+          <button class="chip" id="wake-btn">画面を消さない: OFF</button>
+        </div>
+      </div>
+    </section>
+    <!-- TIMER -->
+    <section class="view" id="v-timer">
+      <div class="ring-wrap">
+        <svg viewBox="0 0 200 200"><circle class="ring-bg" cx="100" cy="100" r="90"/><circle class="ring-fg" id="ring" cx="100" cy="100" r="90" stroke-dasharray="565.5" stroke-dashoffset="0"/></svg>
+        <div class="ring-center"><div class="big-time" id="timer-disp">00:00</div></div>
+      </div>
+      <div class="tinputs" id="timer-inputs">
+        <label><input type="number" id="ti-h" min="0" max="99" value="0"><span>時間</span></label>
+        <label><input type="number" id="ti-m" min="0" max="59" value="5"><span>分</span></label>
+        <label><input type="number" id="ti-s" min="0" max="59" value="0"><span>秒</span></label>
+      </div>
+      <div class="presets">
+        <button data-min="1">1分</button><button data-min="3">3分</button><button data-min="5">5分</button><button data-min="10">10分</button><button data-min="25">25分 ポモドーロ</button><button data-min="30">30分</button><button data-min="60">1時間</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="timer-start">開始</button>
+        <button class="btn sub" id="timer-reset">リセット</button>
+      </div>
+    </section>
+    <!-- ALARM -->
+    <section class="view" id="v-alarm">
+      <h2 class="ttl">アラーム</h2>
+      <div class="add-form">
+        <input type="time" id="al-time" value="07:00">
+        <input type="text" id="al-label" placeholder="ラベル（任意）">
+        <button class="btn" id="al-add" style="min-width:96px;padding:11px 18px">追加</button>
+      </div>
+      <div class="list" id="alarm-list"></div>
+      <div class="w-status">アラームはこのページを開いている間に鳴ります</div>
+    </section>
+    <!-- STOPWATCH -->
+    <section class="view" id="v-stopwatch">
+      <div class="big-time" id="sw-disp">00:00.00</div>
+      <div class="row">
+        <button class="btn" id="sw-start">開始</button>
+        <button class="btn sub" id="sw-lap" disabled>ラップ</button>
+        <button class="btn sub" id="sw-reset">リセット</button>
+      </div>
+      <div class="list" id="lap-list"></div>
+    </section>
+  </main>
+  <footer>ホーム画面に追加するとアプリとして使えます（共有 →「ホーム画面に追加」）</footer>
+</div>
+<div id="overlay">
+  <div class="o-ttl" id="o-ttl">時間です</div>
+  <div class="o-sub" id="o-sub"></div>
+  <button class="btn warn" id="o-stop">止める</button>
+</div>
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+/* ---------- tabs ---------- */
+document.querySelectorAll("nav button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));
+    document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+b.dataset.v));
+  });
+});
+function gotoTab(v){document.querySelector('nav button[data-v="'+v+'"]').click();}
+/* ---------- analog clock face ---------- */
+(function(){
+  const ticks=$("#ticks"),nums=$("#nums"),NS="http://www.w3.org/2000/svg";
+  for(let i=0;i<60;i++){
+    const a=i*6*Math.PI/180,big=i%5===0,l=big?7:3.5;
+    const ln=document.createElementNS(NS,"line");
+    ln.setAttribute("x1",100+88*Math.sin(a));ln.setAttribute("y1",100-88*Math.cos(a));
+    ln.setAttribute("x2",100+(88+l)*Math.sin(a));ln.setAttribute("y2",100-(88+l)*Math.cos(a));
+    ln.setAttribute("stroke","#cfc4cc");ln.setAttribute("stroke-width",big?2.4:1.1);ticks.appendChild(ln);
+  }
+  for(let n=1;n<=12;n++){
+    const a=n*30*Math.PI/180,t=document.createElementNS(NS,"text");
+    t.setAttribute("x",100+70*Math.sin(a));t.setAttribute("y",100-70*Math.cos(a));
+    t.setAttribute("fill","#f3d9e8");t.setAttribute("font-size","19");t.setAttribute("font-weight","700");
+    t.setAttribute("text-anchor","middle");t.setAttribute("dominant-baseline","central");t.textContent=n;nums.appendChild(t);
+  }
+})();
+const WD=["日","月","火","水","木","金","土"];
+function tickClock(){
+  const now=new Date(),ms=now.getMilliseconds();
+  const s=now.getSeconds()+ms/1000,m=now.getMinutes()+s/60,h=(now.getHours()%12)+m/60;
+  $("#s-hand").setAttribute("transform",`rotate(${s*6} 100 100)`);
+  $("#m-hand").setAttribute("transform",`rotate(${m*6} 100 100)`);
+  $("#h-hand").setAttribute("transform",`rotate(${h*30} 100 100)`);
+  $("#digital").textContent=[now.getHours(),now.getMinutes(),now.getSeconds()].map(x=>String(x).padStart(2,"0")).join(":");
+  $("#date-line").textContent=`${now.getMonth()+1}月${now.getDate()}日（${WD[now.getDay()]}）`;
+  requestAnimationFrame(tickClock);
+}
+requestAnimationFrame(tickClock);
+/* ---------- audio ---------- */
+let AC=null,beepTimer=null;
+function audio(){if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==="suspended")AC.resume();return AC;}
+function beepOnce(t0){
+  const ac=audio(),o=ac.createOscillator(),g=ac.createGain();
+  o.type="sine";o.frequency.value=880;o.connect(g);g.connect(ac.destination);
+  g.gain.setValueAtTime(0.0001,t0);g.gain.exponentialRampToValueAtTime(0.5,t0+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t0+0.55);
+  o.start(t0);o.stop(t0+0.6);
+}
+function startRing(title,sub){
+  stopRing();gotoTab("clock");
+  $("#o-ttl").textContent=title;$("#o-sub").textContent=sub;$("#overlay").classList.add("on");
+  const ring=()=>{const t=audio().currentTime;beepOnce(t);beepOnce(t+0.7);beepOnce(t+1.4);};
+  ring();beepTimer=setInterval(ring,2400);
+  if(navigator.vibrate)navigator.vibrate([300,150,300,150,300]);
+}
+function stopRing(){if(beepTimer){clearInterval(beepTimer);beepTimer=null;}$("#overlay").classList.remove("on");if(navigator.vibrate)navigator.vibrate(0);}
+$("#o-stop").addEventListener("click",stopRing);
+/* ---------- weather (never blank: fallback rendered in HTML, real data replaces it) ---------- */
+const FALLBACK_POS={lat:34.886949,lon:135.202507}; /* 直近の現在地 */
+const WMO={0:["☀️","晴れ"],1:["🌤️","晴れ時々曇り"],2:["⛅","曇り時々晴れ"],3:["☁️","曇り"],45:["🌫️","霧"],48:["🌫️","霧"],51:["🌦️","小雨"],53:["🌦️","小雨"],55:["🌧️","雨"],56:["🌧️","凍雨"],57:["🌧️","凍雨"],61:["🌧️","雨"],63:["🌧️","雨"],65:["🌧️","強い雨"],66:["🌧️","凍雨"],67:["🌧️","凍雨"],71:["🌨️","雪"],73:["🌨️","雪"],75:["🌨️","大雪"],77:["🌨️","雪"],80:["🌦️","にわか雨"],81:["🌧️","にわか雨"],82:["🌧️","強いにわか雨"],85:["🌨️","にわか雪"],86:["🌨️","にわか雪"],95:["⛈️","雷雨"],96:["⛈️","雷雨"],99:["⛈️","雷雨"]};
+function fetchTO(url,ms){
+  const c=new AbortController();const id=setTimeout(()=>c.abort(),ms);
+  return fetch(url,{signal:c.signal}).then(r=>{clearTimeout(id);if(!r.ok)throw new Error(r.status);return r.json();});
+}
+function setWeather(temp,code,hi,lo,real,posLabel){
+  const w=WMO[code]||["☁️","曇り"];
+  $("#w-temp").textContent=Math.round(temp);
+  $("#w-icon").textContent=w[0];$("#w-desc").textContent=w[1];
+  $("#w-hi").textContent=Math.round(hi);$("#w-lo").textContent=Math.round(lo);
+  const t=new Date();
+  $("#w-status").textContent=(real?`実データ ${t.getHours()}:${String(t.getMinutes()).padStart(2,"0")} 更新`:"取得できなかったため参考値を表示中")+(posLabel?" ・ "+posLabel:"");
+  try{localStorage.setItem("sb_weather",JSON.stringify({temp,code,hi,lo}));}catch(e){}
+}
+function loadWeather(lat,lon,posLabel){
+  return fetchTO(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=Asia%2FTokyo`,9000)
+    .then(d=>{setWeather(d.current.temperature_2m,d.current.weather_code,d.daily.temperature_2m_max[0],d.daily.temperature_2m_min[0],true,posLabel);})
+    .catch(()=>{ /* 失敗時は今の表示（参考値/キャッシュ）を維持し、状態だけ伝える */
+      $("#w-status").textContent="天気を取得できませんでした。参考値を表示中 ・ "+(posLabel||"");
+    });
+}
+function loadCity(lat,lon){
+  fetchTO(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&accept-language=ja`,8000)
+    .then(d=>{const a=d.address||{};const name=a.city||a.town||a.village||a.county||d.name;if(name)$("#w-city").textContent=name;})
+    .catch(()=>{});
+}
+function refreshWeather(useGeo){
+  let pos=null;try{pos=JSON.parse(localStorage.getItem("sb_pos")||"null");}catch(e){}
+  const base=pos||FALLBACK_POS;
+  loadWeather(base.lat,base.lon,"前回の現在地");loadCity(base.lat,base.lon);
+  if(useGeo&&navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(p=>{
+      const np={lat:p.coords.latitude,lon:p.coords.longitude};
+      try{localStorage.setItem("sb_pos",JSON.stringify(np));}catch(e){}
+      loadWeather(np.lat,np.lon,"現在地");loadCity(np.lat,np.lon);
+    },()=>{},{timeout:7000,maximumAge:600000});
+  }
+}
+(function initWeather(){
+  try{const c=JSON.parse(localStorage.getItem("sb_weather")||"null");if(c)setWeather(c.temp,c.code,c.hi,c.lo,false,"キャッシュ");}catch(e){}
+  refreshWeather(true);
+  setInterval(()=>refreshWeather(false),30*60*1000);
+})();
+$("#w-refresh").addEventListener("click",()=>{audio();refreshWeather(true);});
+/* ---------- fullscreen / wake lock ---------- */
+$("#fs-btn").addEventListener("click",()=>{
+  if(document.fullscreenElement)document.exitFullscreen();
+  else document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();
+});
+let wake=null;
+$("#wake-btn").addEventListener("click",async()=>{
+  if(wake){wake.release();wake=null;$("#wake-btn").textContent="画面を消さない: OFF";return;}
+  try{wake=await navigator.wakeLock.request("screen");$("#wake-btn").textContent="画面を消さない: ON";
+    wake.addEventListener("release",()=>{wake=null;$("#wake-btn").textContent="画面を消さない: OFF";});
+  }catch(e){$("#wake-btn").textContent="画面を消さない: 非対応";}
+});
+/* ---------- timer ---------- */
+const CIRC=565.5;
+let tTotal=0,tRemain=0,tRunning=false,tEndAt=0,tInt=null;
+function fmtT(sec){sec=Math.max(0,Math.ceil(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
+  return h>0?`${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`:`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;}
+function drawTimer(){
+  $("#timer-disp").textContent=fmtT(tRemain);
+  $("#ring").style.strokeDashoffset=tTotal>0?CIRC*(1-tRemain/tTotal):0;
+  $("#nav-timer").classList.toggle("run",tRunning);
+  $("#timer-start").textContent=tRunning?"一時停止":(tRemain>0&&tRemain<tTotal?"再開":"開始");
+}
+function timerSet(sec){tTotal=sec;tRemain=sec;drawTimer();}
+function timerFromInputs(){const h=+$("#ti-h").value||0,m=+$("#ti-m").value||0,s=+$("#ti-s").value||0;timerSet(h*3600+m*60+s);}
+["ti-h","ti-m","ti-s"].forEach(id=>$("#"+id).addEventListener("change",()=>{if(!tRunning)timerFromInputs();}));
+document.querySelectorAll(".presets button").forEach(b=>b.addEventListener("click",()=>{
+  $("#ti-h").value=Math.floor(+b.dataset.min/60);$("#ti-m").value=+b.dataset.min%60;$("#ti-s").value=0;if(!tRunning)timerFromInputs();
+}));
+function timerPause(){tRunning=false;clearInterval(tInt);tInt=null;drawTimer();}
+function timerStart(){
+  audio();
+  if(tRunning){tRemain=Math.max(0,(tEndAt-Date.now())/1000);timerPause();return;}
+  if(tRemain<=0)timerFromInputs();
+  if(tRemain<=0)return;
+  tRunning=true;tEndAt=Date.now()+tRemain*1000;
+  tInt=setInterval(()=>{
+    tRemain=(tEndAt-Date.now())/1000;
+    if(tRemain<=0){tRemain=0;timerPause();startRing("タイマー終了","設定した時間になりました");return;}
+    drawTimer();
+  },100);drawTimer();
+}
+$("#timer-start").addEventListener("click",timerStart);
+$("#timer-reset").addEventListener("click",()=>{timerPause();timerFromInputs();});
+timerFromInputs();
+/* ---------- stopwatch ---------- */
+let swRun=false,swStart=0,swAcc=0,swInt=null,laps=[];
+function fmtSW(ms){const cs=Math.floor(ms/10)%100,s=Math.floor(ms/1000)%60,m=Math.floor(ms/60000);
+  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}.${String(cs).padStart(2,"0")}`;}
+function drawSW(){$("#sw-disp").textContent=fmtSW(swAcc+(swRun?Date.now()-swStart:0));$("#nav-sw").classList.toggle("run",swRun);}
+$("#sw-start").addEventListener("click",()=>{
+  audio();
+  if(swRun){swAcc+=Date.now()-swStart;swRun=false;clearInterval(swInt);$("#sw-start").textContent="再開";$("#sw-lap").disabled=true;}
+  else{swRun=true;swStart=Date.now();swInt=setInterval(drawSW,31);$("#sw-start").textContent="一時停止";$("#sw-lap").disabled=false;}
+  drawSW();
+});
+$("#sw-lap").addEventListener("click",()=>{
+  if(!swRun)return;const total=swAcc+Date.now()-swStart;const prev=laps.length?laps[laps.length-1].total:0;
+  laps.push({n:laps.length+1,lap:total-prev,total});
+  const row=document.createElement("div");row.className="lap-row";
+  row.innerHTML=`<span class="n">ラップ ${laps[laps.length-1].n}</span><span>+${fmtSW(total-prev)}</span><span class="lt">${fmtSW(total)}</span>`;
+  $("#lap-list").prepend(row);
+});
+$("#sw-reset").addEventListener("click",()=>{swRun=false;clearInterval(swInt);swAcc=0;laps=[];$("#lap-list").innerHTML="";$("#sw-start").textContent="開始";$("#sw-lap").disabled=true;drawSW();});
+drawSW();
+/* ---------- alarm ---------- */
+let alarms=[];try{alarms=JSON.parse(localStorage.getItem("sb_alarms")||"[]");}catch(e){alarms=[];}
+let lastFired="";
+function saveAlarms(){try{localStorage.setItem("sb_alarms",JSON.stringify(alarms));}catch(e){}}
+function drawAlarms(){
+  const list=$("#alarm-list");list.innerHTML="";
+  alarms.slice().sort((a,b)=>a.time.localeCompare(b.time)).forEach(al=>{
+    const row=document.createElement("div");row.className="alarm-row";
+    row.innerHTML=`<span class="tm">${al.time}</span><span class="lb">${al.label||""}</span><span class="sp"></span>`;
+    const sw=document.createElement("label");sw.className="sw";
+    const cb=document.createElement("input");cb.type="checkbox";cb.checked=!!al.on;
+    cb.addEventListener("change",()=>{al.on=cb.checked;saveAlarms();drawAlarms();});
+    const i=document.createElement("i");sw.appendChild(cb);sw.appendChild(i);row.appendChild(sw);
+    const del=document.createElement("button");del.className="del";del.textContent="✕";
+    del.addEventListener("click",()=>{alarms=alarms.filter(x=>x.id!==al.id);saveAlarms();drawAlarms();});
+    row.appendChild(del);list.appendChild(row);
+  });
+  $("#nav-alarm").classList.toggle("run",alarms.some(a=>a.on));
+}
+$("#al-add").addEventListener("click",()=>{
+  audio();const t=$("#al-time").value;if(!t)return;
+  alarms.push({id:Date.now(),time:t,label:$("#al-label").value.trim(),on:true});
+  $("#al-label").value="";saveAlarms();drawAlarms();
+});
+drawAlarms();
+setInterval(()=>{
+  const now=new Date(),hm=`${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`,key=hm+now.getDate();
+  if(lastFired===key)return;
+  const hit=alarms.find(a=>a.on&&a.time===hm);
+  if(hit){lastFired=key;startRing("アラーム",`${hit.time}${hit.label?" ・ "+hit.label:""}`);}
+},1000);
+/* ---------- PWA ---------- */
+if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});}
+</script>
+</body>
+</html>
