@@ -240,21 +240,26 @@ function fetchTO(url,ms){
   const c=new AbortController();const id=setTimeout(()=>c.abort(),ms);
   return fetch(url,{signal:c.signal}).then(r=>{clearTimeout(id);if(!r.ok)throw new Error(r.status);return r.json();});
 }
-function setWeather(temp,code,hi,lo,real,posLabel){
-  const w=WMO[code]||["☁️","曇り"];
+function renderW(temp,icon,desc,hi,lo,real,posLabel){
   $("#w-temp").textContent=Math.round(temp);
-  $("#w-icon").textContent=w[0];$("#w-desc").textContent=w[1];
+  $("#w-icon").textContent=icon;$("#w-desc").textContent=desc;
   $("#w-hi").textContent=Math.round(hi);$("#w-lo").textContent=Math.round(lo);
   const t=new Date();
   $("#w-status").textContent=(real?`実データ ${t.getHours()}:${String(t.getMinutes()).padStart(2,"0")} 更新`:"取得できなかったため参考値を表示中")+(posLabel?" ・ "+posLabel:"");
-  try{localStorage.setItem("sb_weather",JSON.stringify({temp,code,hi,lo}));}catch(e){}
+  try{localStorage.setItem("sb_weather",JSON.stringify({temp,icon,desc,hi,lo}));}catch(e){}
 }
+function setWeather(temp,code,hi,lo,real,posLabel){const w=WMO[code]||["☁️","曇り"];renderW(temp,w[0],w[1],hi,lo,real,posLabel);}
+const WWO={"113":["☀️","晴れ"],"116":["⛅","晴れ時々曇り"],"119":["☁️","曇り"],"122":["☁️","曇り"],"143":["🌫️","霧"],"248":["🌫️","霧"],"260":["🌫️","霧"],"176":["🌦️","にわか雨"],"179":["🌨️","雪"],"182":["🌨️","みぞれ"],"185":["🌨️","みぞれ"],"200":["⛈️","雷雨"],"227":["🌨️","雪"],"230":["🌨️","大雪"],"263":["🌦️","小雨"],"266":["🌦️","小雨"],"281":["🌧️","凍雨"],"284":["🌧️","凍雨"],"293":["🌦️","小雨"],"296":["🌦️","小雨"],"299":["🌧️","雨"],"302":["🌧️","雨"],"305":["🌧️","強い雨"],"308":["🌧️","強い雨"],"311":["🌧️","凍雨"],"314":["🌧️","凍雨"],"317":["🌨️","みぞれ"],"320":["🌨️","雪"],"323":["🌨️","雪"],"326":["🌨️","雪"],"329":["🌨️","大雪"],"332":["🌨️","大雪"],"335":["🌨️","大雪"],"338":["🌨️","大雪"],"350":["🌨️","みぞれ"],"353":["🌦️","にわか雨"],"356":["🌧️","にわか雨"],"359":["🌧️","強いにわか雨"],"362":["🌨️","にわか雪"],"365":["🌨️","にわか雪"],"368":["🌨️","にわか雪"],"371":["🌨️","にわか雪"],"374":["🌨️","みぞれ"],"377":["🌨️","みぞれ"],"386":["⛈️","雷雨"],"389":["⛈️","雷雨"],"392":["⛈️","雷雨"],"395":["🌨️","大雪"]};
+function setWeatherWWO(temp,code,hi,lo,posLabel){const w=WWO[String(code)]||["☁️","曇り"];renderW(temp,w[0],w[1],hi,lo,true,posLabel);}
 function loadWeather(lat,lon,posLabel){
   return fetchTO(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=Asia%2FTokyo`,9000)
     .then(d=>{setWeather(d.current.temperature_2m,d.current.weather_code,d.daily.temperature_2m_max[0],d.daily.temperature_2m_min[0],true,posLabel);})
-    .catch(()=>{ /* 失敗時は今の表示（参考値/キャッシュ）を維持し、状態だけ伝える */
-      $("#w-status").textContent="天気を取得できませんでした。参考値を表示中 ・ "+(posLabel||"");
-    });
+    .catch(()=>fetchTO(`https://wttr.in/${lat},${lon}?format=j1`,9000)
+      .then(d=>{const cc=d.current_condition[0];const today=d.weather[0];setWeatherWWO(+cc.temp_C,cc.weatherCode,+today.maxtempC,+today.mintempC,posLabel);})
+      .catch(()=>{ /* 両方失敗時は今の表示（参考値/キャッシュ）を維持し、状態だけ伝える */
+        $("#w-status").textContent="天気を取得できませんでした。参考値を表示中 ・ "+(posLabel||"");
+      })
+    );
 }
 function loadCity(lat,lon){
   fetchTO(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&accept-language=ja`,8000)
@@ -274,7 +279,7 @@ function refreshWeather(useGeo){
   }
 }
 (function initWeather(){
-  try{const c=JSON.parse(localStorage.getItem("sb_weather")||"null");if(c)setWeather(c.temp,c.code,c.hi,c.lo,false,"キャッシュ");}catch(e){}
+  try{const c=JSON.parse(localStorage.getItem("sb_weather")||"null");if(c){if(c.icon)renderW(c.temp,c.icon,c.desc,c.hi,c.lo,false,"キャッシュ");else setWeather(c.temp,c.code,c.hi,c.lo,false,"キャッシュ");}}catch(e){}
   refreshWeather(true);
   setInterval(()=>refreshWeather(false),30*60*1000);
 })();
